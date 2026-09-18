@@ -1,0 +1,77 @@
+@startuml
+
+actor Игрок as debtorTrigger
+
+Game -> Game : handleBankruptcy(debtor, creditor, amount)
+note right: запускается автоматически при нехватке денег у игрока
+activate Game
+
+Game -> Player : CanAfford(amount)
+activate Player
+Game <-- Player : false
+note right: у должника не хватает денег на платёж
+deactivate Player
+
+alt у должника есть постройки
+    Game -> Street : SellAllBuildingsBack(bank)
+    activate Street
+    Street -> Bank : ReturnHouse() / ReturnHotel()
+    note right: возвращает дома/отели в общий фонд банка
+    activate Bank
+    deactivate Bank
+    Game <-- Street : refund
+    deactivate Street
+    Game -> Player : Receive(refund)
+    note right: зачисляет должнику деньги от продажи построек
+end
+
+Game -> Player : CanAfford(amount)
+activate Player
+Game <-- Player : result
+deactivate Player
+
+alt денег хватило после продажи построек
+    Game -> Player : Pay(amount)
+    note right: долг списывается с должника
+    Game -> Player : Receive(amount) : creditor
+    note right: сумма зачисляется кредитору (если это игрок)
+
+else денег всё ещё не хватает
+    Game -> Player : DeclareBankrupt()
+    activate Player
+    note right: должник помечается банкротом
+    deactivate Player
+
+    alt кредитор — другой игрок
+        loop для каждой собственности должника
+            Game -> Player : RemoveProperty(property)
+            note right: имущество забирается у должника
+            Game -> Player : AddProperty(property) : creditor
+            note right: имущество передаётся кредитору
+        end
+    else кредитор — банк
+        loop для каждой собственности должника
+            Game -> Property : Owner = null
+            note right: имущество возвращается в общий пул,\nклетка снова доступна для покупки
+        end
+    end
+
+    Game -> Game : AdvanceToNextPlayer()
+    note right: должник исключается из очереди ходов
+
+    Game -> Game : CheckGameOver()
+    activate Game
+    Game <-- Game : result
+    deactivate Game
+
+    alt остался один активный игрок
+        Game -> Game : GetWinner()
+        note right: партия завершена, определён победитель
+    else осталось несколько игроков
+        note right: партия продолжается в обычном режиме
+    end
+end
+
+deactivate Game
+
+@enduml
