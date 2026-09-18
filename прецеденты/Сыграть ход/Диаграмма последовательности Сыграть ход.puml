@@ -1,0 +1,97 @@
+@startuml
+
+actor Игрок
+
+Игрок -> Game : playTurn()
+note right: запускает обработку одного хода
+activate Game
+
+Game -> Dice : roll()
+note right: генерирует значения кубиков
+activate Dice
+Game <-- Dice : sum
+note right: возвращает сумму броска
+deactivate Dice
+
+Game -> Player : move(sum)
+note right: перемещает фишку игрока на N клеток
+activate Player
+deactivate Player
+
+Game -> Board : getSquare(position)
+note right: возвращает клетку по номеру позиции
+activate Board
+Game <-- Board : square
+deactivate Board
+
+Game -> Square : onLand(player, game)
+note right: запускает реакцию клетки на попадание игрока
+activate Square
+
+alt клетка свободна (Property)
+    Square -> Game : askBuyDecision(player, property)
+    note right: спрашивает у игрока, покупать ли клетку
+    alt игрок согласен купить
+        Square -> Player : pay(price)
+        note right: списывает деньги за покупку
+        Square -> Player : addProperty(property)
+        note right: закрепляет собственность за игроком
+    else игрок отказался
+        Square -> Game : startAuction(property)
+        note right: инициирует аукцион по клетке
+        activate Game
+        Game -> Auction : create(property, players)
+        note right: создаёт объект аукциона с участниками
+        activate Auction
+        Auction -> Auction : conclude()
+        note right: определяет победителя торгов
+        Game <-- Auction : winner
+        deactivate Auction
+        deactivate Game
+    end
+
+else клетка занята другим игроком (Property)
+    Square -> Square : calculateRent()
+    note right: считает сумму аренды по своей формуле
+    Square -> Player : canAfford(rent)
+    note right: проверяет, хватает ли денег у игрока
+    alt денег хватает
+        Square -> Player : pay(rent)
+        note right: списывает аренду с текущего игрока
+        Square -> Player : receive(rent) : owner
+        note right: начисляет аренду владельцу клетки
+    else денег не хватает
+        Square -> Game : handleBankruptcy(player, owner, rent)
+        note right: запускает процедуру банкротства
+    end
+
+else клетка — Налог
+    Square -> Player : pay(amount)
+    note right: списывает фиксированную сумму налога
+
+else клетка — Шанс / Казна
+    Square -> Deck : drawCard()
+    note right: достаёт верхнюю карту колоды
+    activate Deck
+    Square <-- Deck : card
+    deactivate Deck
+    Square -> Card : applyEffect(player, game)
+    note right: применяет эффект карты к игроку
+    activate Card
+    Card -> Player : pay() / receive() / move() / sendToJail()
+    note right: меняет деньги, позицию или статус игрока
+    deactivate Card
+
+else клетка — «Отправляйся в тюрьму»
+    Square -> Player : sendToJail()
+    note right: переносит игрока в тюрьму
+end
+
+deactivate Square
+
+Game -> Game : advanceToNextPlayer()
+note right: передаёт очередь следующему игроку
+Игрок <-- Game : ход завершён
+deactivate Game
+
+@enduml
