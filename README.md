@@ -4,5 +4,4 @@
 Обзор: Игра человека против машины
 
 
-
 Пример: https://gitlab.com/penamarth/pos.git
