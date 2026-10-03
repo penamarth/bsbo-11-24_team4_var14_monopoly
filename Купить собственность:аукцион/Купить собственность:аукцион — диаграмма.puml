@@ -1,0 +1,90 @@
+@startuml
+
+actor Игрок
+participant Game
+participant Board
+participant Property
+participant Auction
+actor "Другие игроки" as Players
+
+Игрок -> Game : playTurn()
+note right: запускает обработку одного хода
+activate Game
+
+Game -> Board : getSquare(position)
+note right: возвращает клетку по номеру позиции
+activate Board
+Game <-- Board : property
+deactivate Board
+
+Game -> Property : onLand(player, game)
+note right: запускает реакцию клетки на попадание игрока
+activate Property
+
+alt клетка свободна (Property)
+    Property -> Game : askBuyDecision(player, property)
+    note right: спрашивает у игрока, покупать ли клетку
+
+    alt игрок согласен купить
+        Game -> Player : canAfford(price)
+        note right: проверяет, хватает ли денег на покупку
+
+        alt денег хватает
+            Game -> Player : pay(price)
+            note right: списывает деньги за покупку
+            Game -> Property : owner = player
+            note right: закрепляет собственность за игроком
+            Game -> Player : addProperty(property)
+            note right: добавляет собственность игроку
+        else денег недостаточно
+            Game -> Game : handleBankruptcy(player, null, price)
+            note right: запускает процедуру банкротства
+        end
+
+    else игрок отказался
+        Property -> Game : startAuction(property)
+        note right: инициирует аукцион по клетке
+        Game -> Auction : create(property, players)
+        note right: создаёт объект аукциона с участниками
+        activate Auction
+
+        loop Пока идут торги
+            Players -> Auction : placeBid(amount)
+            note right: участник делает ставку
+            Players -> Auction : pass()
+            note right: участник может выйти из торгов
+        end
+
+        Auction -> Auction : conclude()
+        note right: определяет победителя торгов
+
+        alt есть победитель
+            Auction -> Player : canAfford(currentBid)
+            note right: проверяет, хватает ли денег у победителя
+            Auction -> Player : pay(currentBid)
+            note right: списывает сумму выигрышной ставки
+            Auction -> Property : owner = winner
+            note right: закрепляет собственность за победителем
+            Auction -> Player : addProperty(property)
+            note right: добавляет собственность победителю
+        else победителя нет
+            Auction -> Property : owner = null
+            note right: собственность остаётся свободной
+        end
+
+        Auction --> Game : winner
+        deactivate Auction
+    end
+
+else клетка не является свободной собственностью
+    Property --> Game : обработка другого типа клетки
+end
+
+deactivate Property
+
+Game -> Game : advanceToNextPlayer()
+note right: передаёт очередь следующему игроку
+Игрок <-- Game : ход завершён
+deactivate Game
+
+@enduml
