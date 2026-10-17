@@ -7,14 +7,14 @@ note right: запускает обработку одного хода
 activate Game
 
 Game -> Dice : roll()
-note right: генерирует значения кубиков
+note right: генерирует значения двух кубиков
 activate Dice
 Game <-- Dice : sum
 note right: возвращает сумму броска
 deactivate Dice
 
 Game -> Player : move(sum)
-note right: перемещает фишку игрока на N клеток
+note right: перемещает фишку игрока на N клеток;\nпри прохождении «Старта» начисляет деньги
 activate Player
 deactivate Player
 
@@ -28,14 +28,14 @@ Game -> Square : onLand(player, game)
 note right: запускает реакцию клетки на попадание игрока
 activate Square
 
-alt клетка свободна (Property)
+alt клетка свободна (Property, owner пусто)
     Square -> Game : askBuyDecision(player, property)
     note right: спрашивает у игрока, покупать ли клетку
     alt игрок согласен купить
         Square -> Player : pay(price)
         note right: списывает деньги за покупку
-        Square -> Player : addProperty(property)
-        note right: закрепляет собственность за игроком
+        Square -> Square : setOwner(player)
+        note right: записывает игрока в поле owner клетки
     else игрок отказался
         Square -> Game : startAuction(property)
         note right: инициирует аукцион по клетке
@@ -45,12 +45,22 @@ alt клетка свободна (Property)
         activate Auction
         Auction -> Auction : conclude()
         note right: определяет победителя торгов
+        alt есть победитель
+            Auction -> Player : pay(currentBid) : winner
+            note right: списывает ставку с победителя
+            Auction -> Square : setOwner(winner)
+            note right: записывает победителя в поле owner клетки
+        else ставок не было
+            note over Auction: owner остаётся пустым
+        end
         Game <-- Auction : winner
         deactivate Auction
         deactivate Game
     end
 
-else клетка занята другим игроком (Property)
+else клетка занята другим игроком (Property, owner ≠ player)
+    Square -> Square : getOwner()
+    note right: берёт владельца из своего поля owner
     Square -> Square : calculateRent()
     note right: считает сумму аренды по своей формуле
     Square -> Player : canAfford(rent)
@@ -67,7 +77,7 @@ else клетка занята другим игроком (Property)
 
 else клетка — Налог
     Square -> Player : pay(amount)
-    note right: списывает фиксированную сумму налога
+    note right: списывает сумму налога, деньги выводятся из игры
 
 else клетка — Шанс / Казна
     Square -> Deck : drawCard()
@@ -85,12 +95,15 @@ else клетка — Шанс / Казна
 else клетка — «Отправляйся в тюрьму»
     Square -> Player : sendToJail()
     note right: переносит игрока в тюрьму
+
+else своя клетка / Старт / Тюрьма / Бесплатная стоянка
+    note over Square: эффекта нет
 end
 
 deactivate Square
 
 Game -> Game : advanceToNextPlayer()
-note right: передаёт очередь следующему игроку
+note right: передаёт очередь следующему игроку-небанкроту
 Игрок <-- Game : ход завершён
 deactivate Game
 
