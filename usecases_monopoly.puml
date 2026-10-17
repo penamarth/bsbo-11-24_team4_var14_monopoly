@@ -1,0 +1,26 @@
+@startuml
+left to right direction
+skinparam monochrome true
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+actor "Текущий игрок" as Текущий
+actor "Другие игроки" as Другие
+
+rectangle "Система «Монополия»" {
+  usecase "Начать новую игру" as UC1
+  usecase "Сыграть ход" as UC2
+  usecase "Купить собственность /\nаукцион" as UC3
+  usecase "Стать банкротом" as UC4
+}
+
+Текущий -- UC1
+Текущий -- UC2
+Текущий -- UC3
+Текущий -- UC4
+
+UC1 -- Другие
+UC2 -- Другие
+UC3 -- Другие
+UC4 -- Другие
+@enduml

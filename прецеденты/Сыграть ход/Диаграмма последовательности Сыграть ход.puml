@@ -1,110 +1,111 @@
 @startuml
 
-actor Игрок
+actor "Игрок" as Пользователь
+participant "Игра" as Игра
+participant "Кубики" as Кубики
+participant "текущий\n: Игрок" as Текущий
+participant "другой\n: Игрок" as Другой
+participant "Доска" as Доска
+participant "Клетка" as Клетка
+participant "Аукцион" as Аукцион
+participant "Колода" as Колода
+participant "Карточка" as Карточка
 
-Игрок -> Game : playTurn()
+Пользователь -> Игра : сыгратьХод()
 note right: запускает обработку одного хода
-activate Game
+activate Игра
 
-Game -> Dice : roll()
+Игра -> Кубики : бросить()
 note right: генерирует значения двух кубиков
-activate Dice
-Game <-- Dice : sum
-note right: возвращает сумму броска
-deactivate Dice
+activate Кубики
+Игра <-- Кубики : сумма
+deactivate Кубики
 
-Game -> Player : move(sum)
-note right: перемещает фишку игрока на N клеток;\nпри прохождении «Старта» начисляет деньги
-activate Player
-deactivate Player
+Игра -> Текущий : переместить(сумма)
+note right: меняет позицию игрока;\nпри прохождении «Старта» начисляет деньги
+activate Текущий
+deactivate Текущий
 
-Game -> Board : getSquare(position)
-note right: возвращает клетку по номеру позиции
-activate Board
-Game <-- Board : square
-deactivate Board
+Игра -> Доска : получитьКлетку(позиция)
+activate Доска
+Игра <-- Доска : клетка
+deactivate Доска
 
-Game -> Square : onLand(player, game)
-note right: запускает реакцию клетки на попадание игрока
-activate Square
+Игра -> Клетка : приПопадании(текущий, игра)
+note right: клетка сама обрабатывает попадание\nв зависимости от своего типа
+activate Клетка
 
-alt клетка свободна (Property, owner пусто)
-    Square -> Game : askBuyDecision(player, property)
-    note right: спрашивает у игрока, покупать ли клетку
-    alt игрок согласен купить
-        Square -> Player : pay(price)
-        note right: списывает деньги за покупку
-        Square -> Square : setOwner(player)
-        note right: записывает игрока в поле owner клетки
+alt Собственность, владелец пусто
+    Клетка -> Игра : запроситьРешениеОПокупке(текущий, клетка)
+    Клетка <-- Игра : решение
+    alt игрок согласен и денег хватает
+        Клетка -> Текущий : заплатить(цена)
+        Клетка -> Клетка : установитьВладельца(текущий)
+        note right: записывает игрока в поле владелец
     else игрок отказался
-        Square -> Game : startAuction(property)
-        note right: инициирует аукцион по клетке
-        activate Game
-        Game -> Auction : create(property, players)
-        note right: создаёт объект аукциона с участниками
-        activate Auction
-        Auction -> Auction : conclude()
-        note right: определяет победителя торгов
+        Клетка -> Игра : начатьАукцион(клетка)
+        activate Игра
+        Игра -> Аукцион : создать(клетка, игроки)
+        activate Аукцион
+        Аукцион -> Аукцион : провестиТорги()
         alt есть победитель
-            Auction -> Player : pay(currentBid) : winner
-            note right: списывает ставку с победителя
-            Auction -> Square : setOwner(winner)
-            note right: записывает победителя в поле owner клетки
+            Аукцион -> Другой : заплатить(текущаяСтавка)
+            note right: победителем может быть\nлюбой игрок, в т.ч. текущий
+            Аукцион -> Клетка : установитьВладельца(победитель)
         else ставок не было
-            note over Auction: owner остаётся пустым
+            note over Аукцион: владелец остаётся пустым
         end
-        Game <-- Auction : winner
-        deactivate Auction
-        deactivate Game
+        deactivate Аукцион
+        deactivate Игра
     end
 
-else клетка занята другим игроком (Property, owner ≠ player)
-    Square -> Square : getOwner()
-    note right: берёт владельца из своего поля owner
-    Square -> Square : calculateRent()
-    note right: считает сумму аренды по своей формуле
-    Square -> Player : canAfford(rent)
-    note right: проверяет, хватает ли денег у игрока
+else Собственность, владелец — другой игрок
+    Клетка -> Клетка : рассчитатьАренду()
+    note right: Улица — по домам/отелю,\nЖД и Коммуналка — по своим формулам
+    Клетка -> Текущий : хватаетДенег(аренда)
     alt денег хватает
-        Square -> Player : pay(rent)
-        note right: списывает аренду с текущего игрока
-        Square -> Player : receive(rent) : owner
-        note right: начисляет аренду владельцу клетки
+        Клетка -> Текущий : заплатить(аренда)
+        Клетка -> Другой : получить(аренда)
+        note right: Другой — владелец клетки
     else денег не хватает
-        Square -> Game : handleBankruptcy(player, owner, rent)
-        note right: запускает процедуру банкротства
+        Клетка -> Игра : обработатьБанкротство(текущий, владелец, аренда)
+        note right: UC4
     end
 
-else клетка — Налог
-    Square -> Player : pay(amount)
-    note right: списывает сумму налога, деньги выводятся из игры
+else Налог
+    Клетка -> Текущий : хватаетДенег(сумма)
+    alt денег хватает
+        Клетка -> Текущий : заплатить(сумма)
+        note right: деньги выводятся из игры
+    else денег не хватает
+        Клетка -> Игра : обработатьБанкротство(текущий, нет, сумма)
+        note right: UC4, кредитора нет
+    end
 
-else клетка — Шанс / Казна
-    Square -> Deck : drawCard()
-    note right: достаёт верхнюю карту колоды
-    activate Deck
-    Square <-- Deck : card
-    deactivate Deck
-    Square -> Card : applyEffect(player, game)
-    note right: применяет эффект карты к игроку
-    activate Card
-    Card -> Player : pay() / receive() / move() / sendToJail()
-    note right: меняет деньги, позицию или статус игрока
-    deactivate Card
+else Шанс / Общая казна
+    Клетка -> Колода : вытянутьКарту()
+    activate Колода
+    Клетка <-- Колода : карточка
+    deactivate Колода
+    Клетка -> Карточка : применитьЭффект(текущий, игра)
+    activate Карточка
+    Карточка -> Текущий : заплатить() / получить() / переместить() / отправитьВТюрьму()
+    note right: штраф проверяется так же, как налог;\nпосле перемещения обрабатывается новая клетка
+    deactivate Карточка
 
-else клетка — «Отправляйся в тюрьму»
-    Square -> Player : sendToJail()
-    note right: переносит игрока в тюрьму
+else «Отправляйся в тюрьму»
+    Клетка -> Текущий : отправитьВТюрьму()
+    note right: позиция = Тюрьма, вТюрьме = да
 
 else своя клетка / Старт / Тюрьма / Бесплатная стоянка
-    note over Square: эффекта нет
+    note over Клетка: эффекта нет
 end
 
-deactivate Square
+deactivate Клетка
 
-Game -> Game : advanceToNextPlayer()
-note right: передаёт очередь следующему игроку-небанкроту
-Игрок <-- Game : ход завершён
-deactivate Game
+Игра -> Игра : перейтиКСледующемуИгроку()
+note right: следующий игрок, не являющийся банкротом
+Пользователь <-- Игра : ход завершён
+deactivate Игра
 
 @enduml

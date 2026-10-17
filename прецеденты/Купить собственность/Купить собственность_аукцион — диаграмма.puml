@@ -4,6 +4,7 @@ actor Игрок
 participant Game
 participant Board
 participant Property
+participant Player
 participant Auction
 actor "Другие игроки" as Players
 
@@ -34,8 +35,6 @@ alt клетка свободна (Property)
             note right: списывает деньги за покупку
             Game -> Property : owner = player
             note right: закрепляет собственность за игроком
-            Game -> Player : addProperty(property)
-            note right: добавляет собственность игроку
         else денег недостаточно
             Game -> Game : handleBankruptcy(player, null, price)
             note right: запускает процедуру банкротства
@@ -65,8 +64,6 @@ alt клетка свободна (Property)
             note right: списывает сумму выигрышной ставки
             Auction -> Property : owner = winner
             note right: закрепляет собственность за победителем
-            Auction -> Player : addProperty(property)
-            note right: добавляет собственность победителю
         else победителя нет
             Auction -> Property : owner = null
             note right: собственность остаётся свободной
