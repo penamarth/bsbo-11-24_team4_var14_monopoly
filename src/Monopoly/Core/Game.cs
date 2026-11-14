@@ -108,7 +108,7 @@ public class Game
         }
 
         Square square = Board.GetSquare(player.Position);
-        Log($"{player.Name} попал на клетку: {square.Name}");
+        Log($"{player.Name} попал на клетку: {square.DisplayName}");
         square.OnLand(player, this);
 
         CheckGameOver();
@@ -117,7 +117,7 @@ public class Game
 
     public bool AskBuyDecision(Player player, Property property)
     {
-        return _input.AskYesNo($"{player.Name}, купить «{property.Name}» за {property.Price}?");
+        return _input.AskYesNo($"{player.Name}, купить «{property.DisplayName}» за {property.Price}?");
     }
 
     public void OfferPurchase(Player player, Property property)
@@ -126,11 +126,11 @@ public class Game
         {
             player.Pay(property.Price);
             property.SetOwner(player);
-            Log($"{player.Name} купил «{property.Name}»");
+            Log($"{player.Name} купил «{property.DisplayName}»");
             return;
         }
 
-        Log($"«{property.Name}» выставляется на аукцион");
+        Log($"«{property.DisplayName}» выставляется на аукцион");
         StartAuction(property);
     }
 
@@ -150,7 +150,7 @@ public class Game
                 }
 
                 int bid = _input.AskNumber(
-                    $"{bidder.Name}, ваша ставка за «{property.Name}» (сейчас {Auction.CurrentBid}, 0 - пас): ");
+                    $"{bidder.Name}, ваша ставка за «{property.DisplayName}» (сейчас {Auction.CurrentBid}, 0 - пас): ");
 
                 if (!Auction.PlaceBid(bidder, bid))
                 {
@@ -243,7 +243,7 @@ public class Game
 
         player.Pay(street.HouseCost);
         street.AddHouse();
-        Log($"{player.Name} построил дом на «{street.Name}»");
+        Log($"{player.Name} построил дом на «{street.DisplayName}»");
         return true;
     }
 

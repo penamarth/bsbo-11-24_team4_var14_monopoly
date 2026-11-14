@@ -5,6 +5,26 @@ public class Street : Property
     public const int MaxHouses = 4;
 
     public string ColorGroup { get; }
+    public override string DisplayName
+    {
+        get
+        {
+            string symbol = ColorGroup switch
+            {
+                "Коричневый" => "🟫",
+                "Белый" => "⬜",
+                "Фиолетовый" => "🟪",
+                "Оранжевый" => "🟧",
+                "Красный" => "🟥",
+                "Жёлтый" => "🟨",
+                "Зелёный" => "🟩",
+                "Синий" => "🟦",
+                _ => ""
+            };
+            string prefix = symbol == "" ? "" : $"{symbol} ";
+            return $"{prefix}{Name} ({ColorGroup})";
+        }
+    }
     public int HouseCost { get; }
 
     // аренда: [без домов, 1 дом, 2 дома, 3 дома, 4 дома, отель]

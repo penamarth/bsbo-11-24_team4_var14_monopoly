@@ -1,0 +1,89 @@
+@startuml
+title Monopoly — aggregate and context boundaries
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+class "Player (user)" as User <<actor>>
+
+package "Game context (existing monolith)" as GameContext {
+  package "Game session aggregate" as Session {
+    class Game <<aggregate_root>>
+    enum GameStatus
+    class Dice
+    Game --> GameStatus : status
+    Game --> Dice : rolls
+  }
+
+  package "Board and ownership aggregate" as BoardAggregate {
+    class Board <<aggregate_root>>
+    abstract class Square
+    abstract class Property
+    class Street
+    class Railroad
+    class Utility
+    Board *-- "40" Square : squares
+    Square <|-- Property
+    Property <|-- Street
+    Property <|-- Railroad
+    Property <|-- Utility
+  }
+
+  package "Player state" as PlayerGroup {
+    class Player
+  }
+
+  package "Cards" as Cards {
+    class Deck
+    class Card
+    enum EffectType
+    Deck o-- "0..*" Card
+    Card --> EffectType
+  }
+
+  package "Auction" as AuctionGroup {
+    class Auction
+  }
+
+  package "Console interaction" as ConsoleGroup {
+    class Program
+    interface IInput
+    class ConsoleInput
+    ConsoleInput ..|> IInput
+    Program --> ConsoleInput
+  }
+
+  Game --> "2..6" Player : manages turns
+  Game --> Board : controls play
+  Game --> "2" Deck : uses
+  Game --> "0..1" Auction : runs
+  Game --> IInput : requests input
+  Property --> "0..1" Player : owner
+  Auction --> Property : offers
+  Auction --> "0..*" Player : participants
+  Square ..> Deck : Chance / CommunityChest
+  Program --> Game : starts and controls
+}
+
+package "Persistence context (proposed)" as Persistence #FFF2CC {
+  interface "Game repository" as GameRepository <<proposed>>
+  class "Game database" as GameDatabase <<database, proposed>>
+  GameRepository --> GameDatabase : saves / loads
+}
+
+User --> Program : interacts
+Game ..> GameRepository : proposed save / load
+
+note bottom of BoardAggregate
+  Proposed aggregate boundary around the existing Board.
+  Ownership changes are currently coordinated by Game.
+end note
+note bottom of Persistence
+  Architectural proposal only: the current code
+  has no repository, database, or save/load feature.
+end note
+note bottom of GameContext
+  Packages group existing code by responsibility;
+  they are not independent services.
+end note
+@enduml

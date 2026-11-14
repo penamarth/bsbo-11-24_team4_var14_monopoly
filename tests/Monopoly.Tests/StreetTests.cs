@@ -5,6 +5,30 @@ namespace Monopoly.Tests;
 
 public class StreetTests
 {
+    [Theory]
+    [InlineData("Коричневый", "🟫")]
+    [InlineData("Белый", "⬜")]
+    [InlineData("Фиолетовый", "🟪")]
+    [InlineData("Оранжевый", "🟧")]
+    [InlineData("Красный", "🟥")]
+    [InlineData("Жёлтый", "🟨")]
+    [InlineData("Зелёный", "🟩")]
+    [InlineData("Синий", "🟦")]
+    public void DisplayName_ShowsColorGroup(string colorGroup, string symbol)
+    {
+        var street = new Street("Тест", 1, 60, colorGroup, 50, new[] { 1, 2, 3, 4, 5, 6 });
+
+        Assert.Equal($"{symbol} Тест ({colorGroup})", street.DisplayName);
+    }
+
+    [Fact]
+    public void DisplayName_UnknownGroup_ShowsNameAndGroup()
+    {
+        var street = new Street("Тест", 1, 60, "Другая", 50, new[] { 1, 2, 3, 4, 5, 6 });
+
+        Assert.Equal("Тест (Другая)", street.DisplayName);
+    }
+
     // Коричневая группа: Житная (1) и Нагатинская (3)
     private static (Game game, Player andrey, Street zhitnaya, Street nagatinskaya) CreateBrownGroup()
     {

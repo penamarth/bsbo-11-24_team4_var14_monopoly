@@ -98,6 +98,6 @@ public class SpecialSquaresTests
     {
         var game = TestGame.Create();
 
-        Assert.Equal("39. ул. Арбат", game.Board.GetSquare(39).ToString());
+        Assert.Equal("39. 🟦 ул. Арбат (Синий)", game.Board.GetSquare(39).ToString());
     }
 }

@@ -47,7 +47,9 @@ public class BoardTests
 
         Assert.Equal(2, board.GetStreetsInGroup("Синий").Count);
         Assert.Equal(3, board.GetStreetsInGroup("Красный").Count);
-        Assert.Empty(board.GetStreetsInGroup("Фиолетовый"));
+        Assert.Equal(3, board.GetStreetsInGroup("Белый").Count);
+        Assert.Equal(3, board.GetStreetsInGroup("Фиолетовый").Count);
+        Assert.Empty(board.GetStreetsInGroup("Несуществующий"));
     }
 
     [Fact]

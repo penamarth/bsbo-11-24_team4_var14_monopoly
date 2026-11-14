@@ -80,7 +80,7 @@ public static class Program
 
         foreach (Street street in streets)
         {
-            Console.WriteLine($"{street.Position}. {street.Name} (домов: {street.HouseCount}, цена дома: {street.HouseCost})");
+            Console.WriteLine($"{street} (домов: {street.HouseCount}, цена дома: {street.HouseCost})");
         }
 
         int position = input.AskNumber("Номер клетки: ");
@@ -109,7 +109,7 @@ public static class Program
             {
                 extra = street.HasHotel ? ", отель" : $", домов: {street.HouseCount}";
             }
-            Console.WriteLine($"{property.Position}. {property.Name}{extra}");
+            Console.WriteLine($"{property}{extra}");
         }
     }
 

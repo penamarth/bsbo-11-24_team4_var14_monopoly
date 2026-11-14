@@ -34,7 +34,7 @@ public class Card
                 }
                 // после перемещения обрабатываем новую клетку
                 Square square = game.Board.GetSquare(TargetPosition);
-                game.Log($"{player.Name} перемещается на клетку {square.Name}");
+                game.Log($"{player.Name} перемещается на клетку {square.DisplayName}");
                 square.OnLand(player, game);
                 break;
 

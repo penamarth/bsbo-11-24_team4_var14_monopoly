@@ -1,110 +1,237 @@
 @startuml
+hide empty members
+skinparam classAttributeIconSize 0
 
-entity "Игра" as Game
-{
-    индексТекущегоИгрока — номер игрока, который сейчас ходит
-    статус — состояние партии (идёт / завершена)
+class Program <<static>> {
+  + static void Main()
+  - static void BuildMenu(Game game, Player player, IInput input)
+  - static void ShowProperties(Game game, Player player)
+  - static string Describe(Game game, Player player)
+  - static void ShowPlayers(Game game)
 }
 
-entity "Игрок" as Player
-{
-    имя — имя участника, отображаемое в игре
-    деньги — текущий баланс игрока
-    позиция — номер клетки, на которой стоит фишка (0–39)
-    вТюрьме — признак нахождения игрока в тюрьме
-    банкрот — признак выбывания игрока из игры
+class Game {
+  + const int StartCash = 1500
+  + const int MinPlayers = 2
+  + const int MaxPlayers = 6
+  - readonly IInput _input
+  - readonly Random? _random
+  + List<Player> Players { get; } = new List<Player>()
+  + Board Board { get; }
+  + Dice Dice { get; }
+  + Deck ChanceDeck { get; }
+  + Deck CommunityChestDeck { get; }
+  + Auction? Auction {get; private set}
+  + GameStatus Status {get; private set} = GameStatus.NotStarted
+  + int CurrentPlayerIndex {get; private set}
+  + Game(IInput input, Dice dice, Random? random = null)
+  + void StartGame(List<string> playerNames)
+  + Player GetCurrentPlayer()
+  + List<Player> GetActivePlayers()
+  + void PlayTurn()
+  + bool AskBuyDecision(Player player, Property property)
+  + void OfferPurchase(Player player, Property property)
+  + Player? StartAuction(Property property)
+  + void ChargePayment(Player payer, Player? receiver, int amount)
+  + void HandleBankruptcy(Player debtor, Player? creditor, int amount)
+  - void SellAllBuildings(Player player)
+  + bool BuildHouse(Player player, Street street)
+  + void AdvanceToNextPlayer()
+  + bool CheckGameOver()
+  + Player? GetWinner()
+  + void Log(string message)
 }
 
-entity "Доска" as Board
-{
+enum GameStatus {
+  NotStarted
+  InProgress
+  Finished
 }
 
-entity "Клетка" as Square
-{
-    название — наименование клетки на поле
-    позиция — порядковый номер клетки на доске (0–39)
+class Board {
+  + const int Size = 40
+  - readonly Square[] _squares
+  + Board(Square[] squares)
+  + Square GetSquare(int position)
+  + List<Property> GetPropertiesOf(Player player)
+  + List<Street> GetStreetsInGroup(string colorGroup)
+  + bool OwnsWholeGroup(Player player, string colorGroup)
+  + bool IsBuildingEven(Street street)
+  + int CountRailroadsOf(Player player)
+  + int CountUtilitiesOf(Player player)
+  + void TransferProperties(Player from, Player to)
+  + void ReleaseProperties(Player player)
+  + static Board CreateStandard(Deck chanceDeck, Deck communityChestDeck)
 }
 
-entity "Собственность" as Property
-{
-    цена — номинальная стоимость покупки
-    <b>владелец</b> — игрок, которому принадлежит клетка (пусто — свободна)
+class Player {
+  + const int BoardSize = 40
+  + const int GoReward = 200
+  + const int JailPosition = 10
+  + const int JailTurnsToLeave = 3
+  + string Name { get; }
+  + int Cash {get; private set}
+  + int Position {get; private set}
+  + bool InJail {get; private set}
+  + int JailTurns {get; private set}
+  + bool Bankrupt {get; private set}
+  + Player(string name, int cash)
+  + bool Move(int steps)
+  + bool MoveTo(int position)
+  + void Pay(int amount)
+  + void Receive(int amount)
+  + bool CanAfford(int amount)
+  + void SendToJail()
+  + bool TryLeaveJail()
+  + void DeclareBankrupt()
+  + override string ToString()
 }
 
-entity "Улица" as Street
-{
-    цветоваяГруппа — цвет набора улиц (монополии)
-    количествоДомов — число построенных домов (0–4)
-    естьОтель — признак наличия отеля на улице
+class Dice {
+  - readonly Random _random
+  + int Value1 {get; protected set}
+  + int Value2 {get; protected set}
+  + Dice() : this(new Random())
+  + Dice(Random random)
+  + virtual int Roll()
+  + int GetSum()
 }
 
-entity "ЖелезнаяДорога" as Railroad
-{
+class Auction {
+  + Property Property { get; }
+  + List<Player> Participants { get; }
+  + int CurrentBid {get; private set}
+  + Player? HighestBidder {get; private set}
+  + Auction(Property property, List<Player> participants)
+  + bool PlaceBid(Player player, int amount)
+  + void Pass(Player player)
+  + bool IsFinished()
+  + Player? Conclude()
 }
 
-entity "КоммунальноеПредприятие" as Utility
-{
+interface IInput {
+  + bool AskYesNo(string question)
+  + int AskNumber(string question)
+  + string AskText(string question)
 }
 
-entity "Налог" as Tax
-{
-    сумма —  сумма налога к оплате
+class ConsoleInput {
+  + bool AskYesNo(string question)
+  + int AskNumber(string question)
+  + string AskText(string question)
 }
 
-entity "Шанс" as Chance
-{
+class Card {
+  + string Description { get; }
+  + EffectType EffectType { get; }
+  + int Amount { get; }
+  + int TargetPosition { get; }
+  + Card(string description, EffectType effectType, int amount = 0, int targetPosition = 0)
+  + void ApplyEffect(Player player, Game game)
 }
 
-entity "ОбщаяКазна" as CommunityChest
-{
+class Deck {
+  - readonly List<Card> _cards
+  + string Name { get; }
+  + int Count
+  + Deck(string name, List<Card> cards)
+  + Card DrawCard()
+  + void ReturnToBottom(Card card)
+  + void Shuffle(Random random)
+  + static Deck CreateChanceDeck()
+  + static Deck CreateCommunityChestDeck()
 }
 
-entity "Старт" as Go
-{
+enum EffectType {
+  Fine
+  Bonus
+  MoveTo
+  GoToJail
 }
 
-entity "Тюрьма" as Jail
-{
+abstract class Square {
+  + string Name { get; }
+  + int Position { get; }
+  # Square(string name, int position)
+  + abstract void OnLand(Player player, Game game)
+  + override string ToString()
 }
 
-entity "БесплатнаяСтоянка" as FreeParking
-{
+abstract class Property {
+  + int Price { get; }
+  + Player? Owner {get; private set}
+  # Property(string name, int position, int price)
+  + bool IsFree()
+  + Player? GetOwner()
+  + void SetOwner(Player? player)
+  + override void OnLand(Player player, Game game)
+  + abstract int CalculateRent(Game game)
 }
 
-entity "ОтправляйсяВТюрьму" as GoToJail
-{
+class Street {
+  + const int MaxHouses = 4
+  + string ColorGroup { get; }
+  + int HouseCost { get; }
+  + int[] RentLevels { get; }
+  + int HouseCount {get; private set}
+  + bool HasHotel {get; private set}
+  + Street(string name, int position, int price, string colorGroup, int houseCost, int[] rentLevels)
+  + int GetBuildingLevel()
+  + override int CalculateRent(Game game)
+  + bool CanBuild(Player player, Board board)
+  + void AddHouse()
+  + void RemoveHouse()
+  + void ClearBuildings()
 }
 
-entity "Кубики" as Dice
-{
-    значение1 — результат броска первого кубика (1–6)
-    значение2 — результат броска второго кубика (1–6)
+class Railroad {
+  + const int BaseRent = 25
+  + Railroad(string name, int position, int price)
+  + override int CalculateRent(Game game)
 }
 
-entity "Колода" as Deck
-{
-    название — тип колоды (Шанс / Общая казна)
+class Utility {
+  + Utility(string name, int position, int price)
+  + override int CalculateRent(Game game)
 }
 
-entity "Карточка" as Card
-{
-    типЭффекта — вид действия карточки (штраф, бонус, перемещение и т.п.)
-    сумма — денежная величина эффекта, если есть
-    описание — текст карточки, показываемый игроку
+class Tax {
+  + int Amount { get; }
+  + Tax(string name, int position, int amount)
+  + override void OnLand(Player player, Game game)
 }
 
-entity "Аукцион" as Auction
-{
-    текущаяСтавка — наибольшая ставка на данный момент
+class Chance {
+  + Deck Deck { get; }
+  + Chance(string name, int position, Deck deck)
+  + override void OnLand(Player player, Game game)
 }
 
-Game "1" -down- "2..6" Player : Включает
-Game "1" -right- "1" Board : Разыгрывается на
-Game "1" -right- "1" Dice : Использует
-Game "1" -- "2" Deck : Использует
-Game "1" -- "0..1" Auction : Инициирует
+class CommunityChest {
+  + Deck Deck { get; }
+  + CommunityChest(string name, int position, Deck deck)
+  + override void OnLand(Player player, Game game)
+}
 
-Board "1" -down- "40" Square : Состоит из {упорядочено}
+class Go {
+  + Go(string name, int position)
+  + override void OnLand(Player player, Game game)
+}
+
+class Jail {
+  + Jail(string name, int position)
+  + override void OnLand(Player player, Game game)
+}
+
+class FreeParking {
+  + FreeParking(string name, int position)
+  + override void OnLand(Player player, Game game)
+}
+
+class GoToJail {
+  + GoToJail(string name, int position)
+  + override void OnLand(Player player, Game game)
+}
 
 Square <|-- Property
 Square <|-- Tax
@@ -114,17 +241,27 @@ Square <|-- Go
 Square <|-- Jail
 Square <|-- FreeParking
 Square <|-- GoToJail
-
 Property <|-- Street
 Property <|-- Railroad
 Property <|-- Utility
-
-Deck "1" -down- "*" Card : Содержит
-
-Player "1" -- "1" Square : Находится на
-Property "0..*" --> "0..1" Player : Принадлежит >
-
-Auction "0..1" -- "1" Property : Разыгрывает
-Auction "1" -- "2..*" Player : Участвуют
-
+IInput <|.. ConsoleInput
+Game --> "0..*" Player : Players
+Game --> Board
+Game --> Dice
+Game --> "2" Deck
+Game --> "0..1" Auction
+Game --> IInput
+Game --> GameStatus
+Board --> "40" Square : _squares
+Property --> "0..1" Player : Owner
+Chance --> Deck
+CommunityChest --> Deck
+Deck --> "0..*" Card
+Card --> EffectType
+Auction --> Property
+Auction --> "0..*" Player : Participants
+Auction --> "0..1" Player : HighestBidder
+Program ..> Game
+Program ..> ConsoleInput
 @enduml
+

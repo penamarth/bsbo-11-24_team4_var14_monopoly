@@ -5,6 +5,7 @@ namespace Monopoly;
 public abstract class Square
 {
     public string Name { get; }
+    public virtual string DisplayName => Name;
     public int Position { get; }
 
     protected Square(string name, int position)
@@ -17,6 +18,6 @@ public abstract class Square
 
     public override string ToString()
     {
-        return $"{Position}. {Name}";
+        return $"{Position}. {DisplayName}";
     }
 }
