@@ -1,6 +1,9 @@
 @startuml
+scale 0.85
 hide empty members
 skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam nodesep 70
 
 class Program <<static>> {
   + static void Main()
@@ -245,23 +248,23 @@ Property <|-- Street
 Property <|-- Railroad
 Property <|-- Utility
 IInput <|.. ConsoleInput
-Game --> "0..*" Player : Players
-Game --> Board
-Game --> Dice
-Game --> "2" Deck
-Game --> "0..1" Auction
-Game --> IInput
-Game --> GameStatus
+Game -[norank]-> "0..*" Player : Players
+Game -down-> Board
+Game -right-> Dice
+Game -[norank]-> "2" Deck
+Game -[norank]-> "0..1" Auction
+Game -[norank]-> IInput
+Game -right-> GameStatus
 Board --> "40" Square : _squares
-Property --> "0..1" Player : Owner
-Chance --> Deck
-CommunityChest --> Deck
+Property -[norank]-> "0..1" Player : Owner
+Chance -[norank]-> Deck
+CommunityChest -[norank]-> Deck
 Deck --> "0..*" Card
 Card --> EffectType
-Auction --> Property
-Auction --> "0..*" Player : Participants
-Auction --> "0..1" Player : HighestBidder
-Program ..> Game
-Program ..> ConsoleInput
+Auction -[norank]-> Property
+Auction -[norank]-> "0..*" Player : Participants
+Auction -[norank]-> "0..1" Player : HighestBidder
+Program .down.> Game
+Program .[norank].> ConsoleInput
 @enduml
 
