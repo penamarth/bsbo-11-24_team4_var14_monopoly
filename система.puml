@@ -250,11 +250,11 @@ Property <|-- Utility
 IInput <|.. ConsoleInput
 Game -[norank]-> "0..*" Player : Players
 Game -down-> Board
-Game -right-> Dice
+Game -down-> Dice
 Game -[norank]-> "2" Deck
 Game -[norank]-> "0..1" Auction
 Game -[norank]-> IInput
-Game -right-> GameStatus
+Game -down-> GameStatus
 Board --> "40" Square : _squares
 Property -[norank]-> "0..1" Player : Owner
 Chance -[norank]-> Deck
@@ -264,7 +264,11 @@ Card --> EffectType
 Auction -[norank]-> Property
 Auction -[norank]-> "0..*" Player : Participants
 Auction -[norank]-> "0..1" Player : HighestBidder
-Program .down.> Game
+Program .up.> Game
 Program .[norank].> ConsoleInput
+Game -[hidden]down-> Player
+Game -[hidden]down-> Auction
+Game -[hidden]down-> Deck
+Game -[hidden]down-> IInput
 @enduml
 

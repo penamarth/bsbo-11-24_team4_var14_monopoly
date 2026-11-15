@@ -1,81 +1,128 @@
 @startuml
+title Начать новую игру
+hide footbox
+skinparam noteBackgroundColor #FFF4B8
 
-actor "Организатор" as Пользователь
-participant "Игра" as Игра
-participant "Доска" as Доска
-participant "Клетка" as Клетка
-participant "Игрок" as Игрок
-participant "Колода" as Колода
-participant "Карточка" as Карточка
-participant "Кубики" as Кубики
+actor "Организатор" as Organizer
+participant Program
+participant ConsoleInput
+participant Game
+participant Dice
+participant Deck
+participant Card
+participant Board
+participant Player
 
-Пользователь -> Игра : начатьНовуюИгру()
-note right: запускает создание партии
-activate Игра
-
-Игра -> Игра : создать()
-note right: статус = «настройка»
-
-Игра -> Доска : создать()
-activate Доска
-loop 40 раз
-    Доска -> Клетка : создать(позиция, тип)
-    note right: у собственностей владелец пусто
+Organizer -> Program : Main()
+activate Program
+Program -> ConsoleInput : new ConsoleInput()
+Program -> Organizer : приветствие
+Program -> ConsoleInput : AskNumber(question)
+ConsoleInput -> Organizer : запрос количества игроков
+Organizer --> ConsoleInput : количество игроков
+ConsoleInput --> Program : count
+loop count < Game.MinPlayers или count > Game.MaxPlayers
+    Program -> ConsoleInput : AskNumber(question)
+    ConsoleInput -> Organizer : повторный запрос количества
+    Organizer --> ConsoleInput : новое количество
+    ConsoleInput --> Program : count
 end
-Игра <-- Доска : доска
-deactivate Доска
+note over Program, ConsoleInput
+  Допустимо от 2 до 6 игроков.
+  При нечисловом ответе метод повторяет запрос.
+  При завершении потока ввода AskNumber() возвращает 0.
+end note
 
-loop пока организатор добавляет игроков
-    Пользователь -> Игра : добавитьИгрока(имя)
-    alt имя непустое, уникальное, игроков < 6
-        Игра -> Игрок : создать(имя)
-        activate Игрок
-        note right: cash = стартовый капитал,\nposition = 0, inJail = нет, bankrupt = нет
-        Игра <-- Игрок : игрок
-        deactivate Игрок
-    else имя некорректно или лимит достигнут
-        Пользователь <-- Игра : ошибка
-    end
+loop для каждого из count игроков
+    Program -> ConsoleInput : AskText(question)
+    ConsoleInput -> Organizer : запрос имени
+    Organizer --> ConsoleInput : имя
+    ConsoleInput --> Program : name
+end
+note over Program
+  Имена сохраняются в списке в порядке ввода.
+  Вместо пустого имени программа подставляет «Игрок N».
+  Одинаковые имена допускаются.
+end note
+
+Program -> Dice : new Dice()
+Program -> Game : new Game(input, dice, random)
+activate Game
+note over Game, Dice
+  Статус при создании — NotStarted.
+  Для кубиков и для перемешивания используются
+  отдельные экземпляры Random.
+end note
+
+Game -> Deck : CreateChanceDeck()
+activate Deck
+Deck -> Card : new Card(description, effectType, amount, targetPosition)
+note over Deck, Card : В каждой фабрике создаётся по пять карточек.
+Deck -> Deck : new Deck(name, cards)
+Deck --> Game : ChanceDeck
+deactivate Deck
+
+Game -> Deck : CreateCommunityChestDeck()
+activate Deck
+Deck -> Card : new Card(description, effectType, amount, targetPosition)
+Deck -> Deck : new Deck(name, cards)
+Deck --> Game : CommunityChestDeck
+deactivate Deck
+
+opt random != null
+    Game -> Deck : Shuffle(random) [ChanceDeck]
+    Game -> Deck : Shuffle(random) [CommunityChestDeck]
 end
 
-Пользователь -> Игра : начатьИгру()
+Game -> Board : CreateStandard(ChanceDeck, CommunityChestDeck)
+activate Board
+note over Board
+  Фабрика создаёт массив из 40 клеток.
+  Клетки «Шанс» и «Общая казна» получают свои общие колоды.
+  У всех объектов Property владелец изначально отсутствует.
+end note
+Board -> Board : new Board(squares)
+Board --> Game : Board
+deactivate Board
+Game --> Program : game
+deactivate Game
 
-alt игроков от 2 до 6
-    Игра -> Колода : создать(Шанс)
-    activate Колода
-    Колода -> Карточка : создать(эффект, сумма, описание)
-    Колода -> Колода : перемешать()
-    deactivate Колода
-
-    Игра -> Колода : создать(Общая казна)
-    activate Колода
-    Колода -> Карточка : создать(эффект, сумма, описание)
-    Колода -> Колода : перемешать()
-    deactivate Колода
-
-    Игра -> Кубики : создать()
-
-    Игра -> Игрок : поставитьНаСтарт()
-    note right: для каждого игрока:\nposition = 0, выдан стартовый капитал
-
-    alt первый игрок определяется броском
-        loop каждый игрок
-            Игра -> Кубики : бросить()
-            Игра <-- Кубики : сумма
-        end
-        note right: при равенстве — повторный бросок\nсреди претендентов
-    else случайный выбор
-        Игра -> Игра : выбратьПервогоИгрока()
-    end
-
-    Игра -> Игра : установитьТекущегоИгрока(индекс)
-    note right: currentPlayerIndex = первый игрок;\nстатус = «идёт»
-else игроков меньше 2
-    Пользователь <-- Игра : ошибка: недостаточно игроков
+Program -> Game : StartGame(names)
+activate Game
+note over Game
+  Метод проверяет количество имён. Вызов с числом
+  имён вне диапазона 2–6 вызывает ArgumentException.
+end note
+note over Game : Список Players очищается перед добавлением игроков.
+loop для каждого name в playerNames
+    Game -> Player : new Player(name, StartCash)
+    Player --> Game : player
 end
+note over Game, Player
+  Созданные игроки добавляются в Players.
+  Каждый игрок начинает на позиции 0 с балансом 1500,
+  без банкротства и заключения в тюрьме.
+end note
+opt _random != null
+    note over Game
+      Игра перемешивает весь список игроков:
+      для каждого индекса от конца к началу
+      выполняется обмен с позицией _random.Next(i + 1).
+    end note
+end
+note over Game
+  CurrentPlayerIndex = 0.
+  Status = GameStatus.InProgress.
+end note
+Game --> Program
+deactivate Game
 
-Пользователь <-- Игра : игра начата, ход первого игрока
-note right: дальше — UC2 «Сыграть ход»
-deactivate Игра
+Program -> Game : GetCurrentPlayer()
+Game --> Program : player
+Program -> Program : Describe(game, player)
+Program -> Board : GetSquare(player.Position)
+Board --> Program : square
+Program --> Organizer : меню хода первого игрока
+deactivate Program
 
 @enduml

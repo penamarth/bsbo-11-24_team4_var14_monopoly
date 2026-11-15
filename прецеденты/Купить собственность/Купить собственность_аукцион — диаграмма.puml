@@ -1,87 +1,110 @@
 @startuml
+title Купить собственность / выставить на аукцион
+hide footbox
+skinparam noteBackgroundColor #FFF4B8
 
-actor Игрок
+participant "property : Property" as Property
 participant Game
-participant Board
-participant Property
-participant Player
+participant "player : Player" as Player
+participant "input : ConsoleInput" as Input
+actor "Игроки" as Users
 participant Auction
-actor "Другие игроки" as Players
+participant "bidder : Player" as Bidder
+participant "winner : Player" as Winner
 
-Игрок -> Game : playTurn()
-note right: запускает обработку одного хода
-activate Game
-
-Game -> Board : getSquare(position)
-note right: возвращает клетку по номеру позиции
-activate Board
-Game <-- Board : property
-deactivate Board
-
-Game -> Property : onLand(player, game)
-note right: запускает реакцию клетки на попадание игрока
+[-> Property : OnLand(player, game)
 activate Property
+note over Property, Game
+  Сценарий начинается при попадании на свободную собственность.
+  Вход в OnLand() возможен из Game.PlayTurn() или Card.ApplyEffect().
+end note
 
-alt клетка свободна (Property)
-    Property -> Game : askBuyDecision(player, property)
-    note right: спрашивает у игрока, покупать ли клетку
-
-    alt игрок согласен купить
-        Game -> Player : canAfford(price)
-        note right: проверяет, хватает ли денег на покупку
-
-        alt денег хватает
-            Game -> Player : pay(price)
-            note right: списывает деньги за покупку
-            Game -> Property : owner = player
-            note right: закрепляет собственность за игроком
-        else денег недостаточно
-            Game -> Game : handleBankruptcy(player, null, price)
-            note right: запускает процедуру банкротства
-        end
-
-    else игрок отказался
-        Property -> Game : startAuction(property)
-        note right: инициирует аукцион по клетке
-        Game -> Auction : create(property, players)
-        note right: создаёт объект аукциона с участниками
-        activate Auction
-
-        loop Пока идут торги
-            Players -> Auction : placeBid(amount)
-            note right: участник делает ставку
-            Players -> Auction : pass()
-            note right: участник может выйти из торгов
-        end
-
-        Auction -> Auction : conclude()
-        note right: определяет победителя торгов
-
-        alt есть победитель
-            Auction -> Player : canAfford(currentBid)
-            note right: проверяет, хватает ли денег у победителя
-            Auction -> Player : pay(currentBid)
-            note right: списывает сумму выигрышной ставки
-            Auction -> Property : owner = winner
-            note right: закрепляет собственность за победителем
-        else победителя нет
-            Auction -> Property : owner = null
-            note right: собственность остаётся свободной
-        end
-
-        Auction --> Game : winner
-        deactivate Auction
-    end
-
-else клетка не является свободной собственностью
-    Property --> Game : обработка другого типа клетки
+Property -> Game : OfferPurchase(player, property)
+activate Game
+Game -> Player : CanAfford(property.Price)
+Player --> Game : bool
+opt игрок может оплатить полную цену
+    Game -> Game : AskBuyDecision(player, property)
+    Game -> Input : AskYesNo(question)
+    Input -> Users : предложение покупки текущему игроку
+    Users --> Input : ответ
+    Input --> Game : bool
 end
 
-deactivate Property
+alt денег хватает и игрок согласился
+    Game -> Player : Pay(property.Price)
+    Game -> Property : SetOwner(player)
+    Game -> Game : Log(message)
+else денег не хватает или игрок отказался
+    Game -> Game : Log(message)
+    Game -> Game : StartAuction(property)
+    activate Game
+    Game -> Game : GetActivePlayers()
+    create Auction
+    Game -> Auction : new Auction(property, participants)
+    note over Game, Auction
+      В торгах участвуют все игроки без банкротства,
+      в том числе тот, кто попал на клетку.
+      Стартовая ставка — 0, лидера пока нет.
+    end note
 
-Game -> Game : advanceToNextPlayer()
-note right: передаёт очередь следующему игроку
-Игрок <-- Game : ход завершён
+    loop пока IsFinished() возвращает false
+        Game -> Auction : IsFinished()
+        Auction --> Game : false
+        loop по копии Participants до завершения торгов
+            opt участник не является текущим лидером
+                Game -> Input : AskNumber(question)
+                Input -> Users : запрос ставки у участника
+                Users --> Input : ставка или 0 для паса
+                Input --> Game : bid
+                Game -> Auction : PlaceBid(bidder, bid)
+                activate Auction
+                opt игрок участвует и ставка выше текущей
+                    Auction -> Bidder : CanAfford(bid)
+                    Bidder --> Auction : bool
+                end
+                note over Auction
+                  Допустимая ставка обновляет CurrentBid
+                  и HighestBidder. Деньги спишутся после торгов.
+                end note
+                Auction --> Game : bool
+                deactivate Auction
+                opt ставка отклонена, в том числе при вводе 0
+                    Game -> Auction : Pass(bidder)
+                    note over Auction : Участник выбывает из текущих торгов.
+                end
+                Game -> Auction : IsFinished()
+                Auction --> Game : bool
+                note over Game, Auction
+                  Торги завершаются, когда участников нет
+                  или остался один участник и есть лидер.
+                  При завершении обход копии прерывается.
+                end note
+            end
+        end
+    end
+    Game -> Auction : IsFinished()
+    Auction --> Game : true
+
+    Game -> Auction : Conclude()
+    activate Auction
+    alt есть HighestBidder
+        Auction -> Winner : Pay(CurrentBid)
+        Auction -> Property : SetOwner(HighestBidder)
+    else ставок не было
+        note over Property, Auction : Клетка остаётся свободной.
+    end
+    Auction --> Game : winner или null
+    deactivate Auction
+    Game -> Game : Log(message)
+    note over Game : Игра сообщает результат торгов, затем устанавливает Auction = null.
+    Game --> Game : winner или null
+    deactivate Game
+end
+
+Game --> Property
 deactivate Game
+[<-- Property
+deactivate Property
 
 @enduml

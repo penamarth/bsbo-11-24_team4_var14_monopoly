@@ -1,89 +1,126 @@
 @startuml
-title Monopoly — aggregate and context boundaries
-left to right direction
-skinparam packageStyle rectangle
+
 skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam groupInheritance 2
+skinparam ranksep 42
+skinparam nodesep 32
+hide circle
+hide empty members
 
-class "Player (user)" as User <<actor>>
-
-package "Game context (existing monolith)" as GameContext {
-  package "Game session aggregate" as Session {
-    class Game <<aggregate_root>>
-    enum GameStatus
-    class Dice
-    Game --> GameStatus : status
-    Game --> Dice : rolls
+package "Game aggregate · games" as GameAggregate {
+  class Game {
+    + List<Player> Players
+    + Board Board
+    + Dice Dice
+    + Deck ChanceDeck
+    + Deck CommunityChestDeck
+    + Auction? Auction
+    + GameStatus Status
+    + int CurrentPlayerIndex
   }
 
-  package "Board and ownership aggregate" as BoardAggregate {
-    class Board <<aggregate_root>>
-    abstract class Square
-    abstract class Property
-    class Street
-    class Railroad
-    class Utility
-    Board *-- "40" Square : squares
-    Square <|-- Property
-    Property <|-- Street
-    Property <|-- Railroad
-    Property <|-- Utility
+  class Player {
+    + string Name
+    + int Cash
+    + int Position
+    + bool InJail
+    + int JailTurns
+    + bool Bankrupt
   }
 
-  package "Player state" as PlayerGroup {
-    class Player
+  class Dice {
+    + int Value1
+    + int Value2
   }
 
-  package "Cards" as Cards {
-    class Deck
-    class Card
-    enum EffectType
-    Deck o-- "0..*" Card
-    Card --> EffectType
+  class Auction {
+    + Property Property
+    + List<Player> Participants
+    + int CurrentBid
+    + Player? HighestBidder
   }
 
-  package "Auction" as AuctionGroup {
-    class Auction
-  }
-
-  package "Console interaction" as ConsoleGroup {
-    class Program
-    interface IInput
-    class ConsoleInput
-    ConsoleInput ..|> IInput
-    Program --> ConsoleInput
-  }
-
-  Game --> "2..6" Player : manages turns
-  Game --> Board : controls play
-  Game --> "2" Deck : uses
-  Game --> "0..1" Auction : runs
-  Game --> IInput : requests input
-  Property --> "0..1" Player : owner
-  Auction --> Property : offers
-  Auction --> "0..*" Player : participants
-  Square ..> Deck : Chance / CommunityChest
-  Program --> Game : starts and controls
+  Game --> "0..*" Player : Players
+  Game --> Dice
+  Game --> "0..1" Auction
 }
 
-package "Persistence context (proposed)" as Persistence #FFF2CC {
-  interface "Game repository" as GameRepository <<proposed>>
-  class "Game database" as GameDatabase <<database, proposed>>
-  GameRepository --> GameDatabase : saves / loads
+package "Board aggregate · boards" as BoardAggregate  {
+  class Board {
+    - readonly Square[] _squares
+  }
+
+  abstract class Square {
+    + string Name
+    + int Position
+  }
+
+  abstract class Property {
+    + int Price
+    + Player? Owner
+  }
+
+  class Street {
+    + string ColorGroup
+    + int HouseCost
+    + int[] RentLevels
+    + int HouseCount
+    + bool HasHotel
+  }
+
+  class Railroad
+  class Utility
+
+  class Tax {
+    + int Amount
+  }
+
+  class Chance {
+    + Deck Deck
+  }
+
+  class CommunityChest {
+    + Deck Deck
+  }
+
+  class Go
+  class Jail
+  class FreeParking
+  class GoToJail
+
+  Board --> "40" Square
+  Square <|-- Property
+  Square <|-- Tax
+  Square <|-- Chance
+  Square <|-- CommunityChest
+  Square <|-- Go
+  Square <|-- Jail
+  Square <|-- FreeParking
+  Square <|-- GoToJail
+  Property <|-- Street
+  Property <|-- Railroad
+  Property <|-- Utility
 }
 
-User --> Program : interacts
-Game ..> GameRepository : proposed save / load
+package "Deck aggregate · decks" as DeckAggregate  {
+  class Deck {
+    - readonly List<Card> _cards
+    + string Name
+  }
 
-note bottom of BoardAggregate
-  Proposed aggregate boundary around the existing Board.
-  Ownership changes are currently coordinated by Game.
-end note
-note bottom of Persistence
-  Architectural proposal only: the current code
-  has no repository, database, or save/load feature.
-end note
-note bottom of GameContext
-  Packages group existing code by responsibility;
-  they are not independent services.
-end note
+  class Card {
+    + string Description
+    + EffectType EffectType
+    + int Amount
+    + int TargetPosition
+  }
+
+  Deck --> "0..*" Card : _cards {ordered}
+}
+
+Game -down-> Board
+Game -right-> "2" Deck
+
 @enduml
