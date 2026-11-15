@@ -8,7 +8,7 @@ public class Tax : Square
     {
         Amount = amount;
     }
-
+    // добавили описание 
     // Банка нет, поэтому налог просто выводится из игры (получателя нет)
     public override void OnLand(Player player, Game game)
     {
