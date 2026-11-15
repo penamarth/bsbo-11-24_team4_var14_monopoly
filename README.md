@@ -83,8 +83,6 @@ reportgenerator -reports:"tests/**/coverage.cobertura.xml" -targetdir:coveragere
 open coveragereport/index.html
 ```
 
-`Program.cs` и `ConsoleInput.cs` исключены из покрытия (`[ExcludeFromCodeCoverage]`):
-это работа с консолью, её не тестируем.
 
 ## Разделение работы
 
