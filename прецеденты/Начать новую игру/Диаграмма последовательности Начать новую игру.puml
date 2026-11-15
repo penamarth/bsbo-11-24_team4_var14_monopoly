@@ -1,7 +1,11 @@
 @startuml
-title Начать новую игру
+title UC1. Начать новую игру
 hide footbox
 skinparam noteBackgroundColor #FFF4B8
+legend
+  В квадратных скобках — префиксы строк журнала.
+  Успешный запуск выведен в блоке «ИНИЦИАЛИЗАЦИЯ ИГРЫ».
+endlegend
 
 actor "Организатор" as Organizer
 participant Program
@@ -15,38 +19,45 @@ participant Player
 
 Organizer -> Program : Main()
 activate Program
-Program -> ConsoleInput : new ConsoleInput()
-Program -> Organizer : приветствие
+note over Program : Заголовок «МОНОПОЛИЯ — ИНИЦИАЛИЗАЦИЯ ИГРЫ»
+Program -> ConsoleInput : new ConsoleInput()\n[new ConsoleInput()] Создан объект для ввода
 Program -> ConsoleInput : AskNumber(question)
-ConsoleInput -> Organizer : запрос количества игроков
+ConsoleInput -> Organizer : [ConsoleInput.AskNumber()] Количество игроков (2–6)
 Organizer --> ConsoleInput : количество игроков
 ConsoleInput --> Program : count
-loop count < Game.MinPlayers или count > Game.MaxPlayers
+loop ввод открыт, count вне диапазона 2–6
     Program -> ConsoleInput : AskNumber(question)
-    ConsoleInput -> Organizer : повторный запрос количества
+    ConsoleInput -> Organizer : [ConsoleInput.AskNumber()] Нужно от 2 до 6
     Organizer --> ConsoleInput : новое количество
     ConsoleInput --> Program : count
 end
 note over Program, ConsoleInput
   Допустимо от 2 до 6 игроков.
-  При нечисловом ответе метод повторяет запрос.
-  При завершении потока ввода AskNumber() возвращает 0.
+  При нечисловом ответе [ConsoleInput.AskNumber()] выводит
+  «Нужно ввести число.» и повторяет тот же запрос.
+  При завершении потока AskNumber() возвращает 0
+  и устанавливает EndOfInput.
 end note
 
-loop для каждого из count игроков
+loop для каждого из count игроков, пока ввод открыт
     Program -> ConsoleInput : AskText(question)
-    ConsoleInput -> Organizer : запрос имени
+    ConsoleInput -> Organizer : [ConsoleInput.AskText()] Имя игрока N
     Organizer --> ConsoleInput : имя
     ConsoleInput --> Program : name
 end
 note over Program
   Имена сохраняются в списке в порядке ввода.
-  Вместо пустого имени программа подставляет «Игрок N».
+  Пустая строка при открытом вводе заменяется на «Игрок N».
   Одинаковые имена допускаются.
 end note
 
-Program -> Dice : new Dice()
-Program -> Game : new Game(input, dice, random)
+break ConsoleInput.EndOfInput при настройке партии
+    Program -> Organizer : ЗАВЕРШЕНИЕ ИГРЫ\n[Program.Main()] Ввод завершён. Партия не началась.
+end
+
+note over Program : Подготовка поля и колод
+Program -> Dice : new Dice()\n[new Dice()] Создан объект для броска двух кубиков
+Program -> Game : new Game(input, dice, random)\n[new Game()] Создаётся партия в состоянии NotStarted
 activate Game
 note over Game, Dice
   Статус при создании — NotStarted.
@@ -54,48 +65,61 @@ note over Game, Dice
   отдельные экземпляры Random.
 end note
 
-Game -> Deck : CreateChanceDeck()
+Game -> Game : CreateBoard(random)
+Game -> Deck : CreateChanceDeck()\n[Deck.CreateChanceDeck()] Формирует колоду «Шанс»
 activate Deck
-Deck -> Card : new Card(description, effectType, amount, targetPosition)
-note over Deck, Card : В каждой фабрике создаётся по пять карточек.
-Deck -> Deck : new Deck(name, cards)
+loop пять карточек колоды «Шанс»
+    Deck -> Card : new Card(description, effectType, amount, targetPosition)\n[new Card()] Создана карта
+end
+Deck -> Deck : new Deck(name, cards)\n[new Deck()] Создана колода из пяти карт
 Deck --> Game : ChanceDeck
 deactivate Deck
 
-Game -> Deck : CreateCommunityChestDeck()
+Game -> Deck : CreateCommunityChestDeck()\n[Deck.CreateCommunityChestDeck()] Формирует колоду «Общая казна»
 activate Deck
-Deck -> Card : new Card(description, effectType, amount, targetPosition)
-Deck -> Deck : new Deck(name, cards)
+loop пять карточек колоды «Общая казна»
+    Deck -> Card : new Card(description, effectType, amount, targetPosition)\n[new Card()] Создана карта
+end
+Deck -> Deck : new Deck(name, cards)\n[new Deck()] Создана колода из пяти карт
 Deck --> Game : CommunityChestDeck
 deactivate Deck
 
 opt random != null
-    Game -> Deck : Shuffle(random) [ChanceDeck]
-    Game -> Deck : Shuffle(random) [CommunityChestDeck]
+    Game -> Deck : Shuffle(random)\n[Deck.Shuffle()] Колода «Шанс» перемешана
+    Game -> Deck : Shuffle(random)\n[Deck.Shuffle()] Колода «Общая казна» перемешана
 end
 
-Game -> Board : CreateStandard(ChanceDeck, CommunityChestDeck)
+Game -> Board : CreateStandard(ChanceDeck, CommunityChestDeck)\n[Board.CreateStandard()] Подготавливает поле и привязывает колоды
 activate Board
 note over Board
   Фабрика создаёт массив из 40 клеток.
   Клетки «Шанс» и «Общая казна» получают свои общие колоды.
   У всех объектов Property владелец изначально отсутствует.
 end note
-Board -> Board : new Board(squares)
+Board -> Board : new Board(squares)\n[new Board()] Создано поле из 40 клеток
 Board --> Game : Board
 deactivate Board
+Game --> Game : board, chanceDeck, communityChestDeck
 Game --> Program : game
 deactivate Game
 
+note over Program : Игроки и порядок ходов
 Program -> Game : StartGame(names)
 activate Game
 note over Game
   Метод проверяет количество имён. Вызов с числом
   имён вне диапазона 2–6 вызывает ArgumentException.
 end note
+note over Game : [Game.StartGame()] Начинается новая партия.
+opt повторный StartGame() на том же объекте
+    Game -> Game : CreateBoard(_random)
+    ref over Game, Board : Та же подготовка поля и колод, что в конструкторе
+    Game -> Dice : Reset()\n[Dice.Reset()] Значения кубиков сброшены
+    note over Game : Новое поле свободно, ссылка Auction сбрасывается.
+end
 note over Game : Список Players очищается перед добавлением игроков.
 loop для каждого name в playerNames
-    Game -> Player : new Player(name, StartCash)
+    Game -> Player : new Player(name, StartCash)\n[new Player()] Создан игрок с балансом 1500 и позицией 0
     Player --> Game : player
 end
 note over Game, Player
@@ -112,17 +136,12 @@ opt _random != null
 end
 note over Game
   CurrentPlayerIndex = 0.
-  Status = GameStatus.InProgress.
+  [Game.StartGame()] Статус InProgress и порядок ходов.
 end note
 Game --> Program
 deactivate Game
 
-Program -> Game : GetCurrentPlayer()
-Game --> Program : player
-Program -> Program : Describe(game, player)
-Program -> Board : GetSquare(player.Position)
-Board --> Program : square
-Program --> Organizer : меню хода первого игрока
+ref over Program, Organizer : UC2. Сыграть ход\nПервый показ блока «МЕНЮ ХОДА»
 deactivate Program
 
 @enduml

@@ -11,8 +11,8 @@ public class CommunityChest : Square
 
     public override void OnLand(Player player, Game game)
     {
+        game.Log(nameof(CommunityChest), $"{GameTrace.Describe(player)} попадает на {GameTrace.Describe(this)}.");
         Card card = Deck.DrawCard();
-        game.Log($"Общая казна: {card.Description}");
         Deck.ReturnToBottom(card);
         card.ApplyEffect(player, game);
     }

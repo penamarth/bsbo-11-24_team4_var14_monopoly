@@ -1,7 +1,11 @@
 @startuml
-title Купить собственность / выставить на аукцион
+title UC3. Купить собственность / выставить на аукцион
 hide footbox
 skinparam noteBackgroundColor #FFF4B8
+legend
+  В квадратных скобках — префиксы строк журнала.
+  Вход из UC2 — вызов OfferPurchase() при обработке свободной Property.
+endlegend
 
 participant "property : Property" as Property
 participant Game
@@ -12,36 +16,32 @@ participant Auction
 participant "bidder : Player" as Bidder
 participant "winner : Player" as Winner
 
-[-> Property : OnLand(player, game)
-activate Property
-note over Property, Game
-  Сценарий начинается при попадании на свободную собственность.
-  Вход в OnLand() возможен из Game.PlayTurn() или Card.ApplyEffect().
-end note
-
 Property -> Game : OfferPurchase(player, property)
 activate Game
-Game -> Player : CanAfford(property.Price)
+note over Game : Покупка собственности\n[Game.OfferPurchase()] Проверяет возможность покупки
+Game -> Player : CanAfford(property.Price)\n[Player.CanAfford()] Баланс и достаточность средств
 Player --> Game : bool
 opt игрок может оплатить полную цену
-    Game -> Game : AskBuyDecision(player, property)
+    Game -> Game : AskBuyDecision(player, property)\n[Game.AskBuyDecision()] Запрашивает решение о покупке
     Game -> Input : AskYesNo(question)
-    Input -> Users : предложение покупки текущему игроку
+    Input -> Users : [ConsoleInput.AskYesNo()] Предложение покупки (д/н)
     Users --> Input : ответ
+    note over Input : При неверном ответе [ConsoleInput.AskYesNo()]\nвыводит «Введите д или н.» и повторяет запрос.
     Input --> Game : bool
 end
 
 alt денег хватает и игрок согласился
-    Game -> Player : Pay(property.Price)
-    Game -> Property : SetOwner(player)
-    Game -> Game : Log(message)
+    Game -> Player : Pay(property.Price)\n[Player.Pay()] Списание цены
+    Game -> Property : SetOwner(player)\n[Property.SetOwner()] Новый владелец
+    note over Game : [Game.OfferPurchase()] Игрок купил клетку
 else денег не хватает или игрок отказался
-    Game -> Game : Log(message)
+    note over Game : [Game.OfferPurchase()] Клетка выставляется на аукцион
     Game -> Game : StartAuction(property)
     activate Game
-    Game -> Game : GetActivePlayers()
+    note over Game : Аукцион\n[Game.StartAuction()] Запускает аукцион
+    Game -> Game : GetActivePlayers()\n[Game.GetActivePlayers()] Число игроков без банкротства
     create Auction
-    Game -> Auction : new Auction(property, participants)
+    Game -> Auction : new Auction(property, participants)\n[new Auction()] Клетка, участники, ставка 0
     note over Game, Auction
       В торгах участвуют все игроки без банкротства,
       в том числе тот, кто попал на клетку.
@@ -49,31 +49,32 @@ else денег не хватает или игрок отказался
     end note
 
     loop пока IsFinished() возвращает false
-        Game -> Auction : IsFinished()
+        Game -> Auction : IsFinished()\n[Auction.IsFinished()] Торги продолжаются
         Auction --> Game : false
         loop по копии Participants до завершения торгов
             opt участник не является текущим лидером
                 Game -> Input : AskNumber(question)
-                Input -> Users : запрос ставки у участника
+                Input -> Users : [ConsoleInput.AskNumber()] Запрос ставки у участника
                 Users --> Input : ставка или 0 для паса
+                note over Input : При нечисловом ответе [ConsoleInput.AskNumber()]\nвыводит «Нужно ввести число.» и повторяет запрос.
                 Input --> Game : bid
                 Game -> Auction : PlaceBid(bidder, bid)
                 activate Auction
                 opt игрок участвует и ставка выше текущей
-                    Auction -> Bidder : CanAfford(bid)
+                    Auction -> Bidder : CanAfford(bid)\n[Player.CanAfford()] Проверка средств участника
                     Bidder --> Auction : bool
                 end
                 note over Auction
+                  [Auction.PlaceBid()] Ставка принята, отклонена или введён 0.
                   Допустимая ставка обновляет CurrentBid
                   и HighestBidder. Деньги спишутся после торгов.
                 end note
                 Auction --> Game : bool
                 deactivate Auction
                 opt ставка отклонена, в том числе при вводе 0
-                    Game -> Auction : Pass(bidder)
-                    note over Auction : Участник выбывает из текущих торгов.
+                    Game -> Auction : Pass(bidder)\n[Auction.Pass()] Участник выбывает из текущих торгов
                 end
-                Game -> Auction : IsFinished()
+                Game -> Auction : IsFinished()\n[Auction.IsFinished()] Число участников и статус торгов
                 Auction --> Game : bool
                 note over Game, Auction
                   Торги завершаются, когда участников нет
@@ -83,28 +84,27 @@ else денег не хватает или игрок отказался
             end
         end
     end
-    Game -> Auction : IsFinished()
+    Game -> Auction : IsFinished()\n[Auction.IsFinished()] Торги завершены
     Auction --> Game : true
 
+    note over Game, Auction : Результат аукциона
     Game -> Auction : Conclude()
     activate Auction
     alt есть HighestBidder
-        Auction -> Winner : Pay(CurrentBid)
-        Auction -> Property : SetOwner(HighestBidder)
+        note over Auction : [Auction.Conclude()] Завершает сделку с победителем
+        Auction -> Winner : Pay(CurrentBid)\n[Player.Pay()] Списание победной ставки
+        Auction -> Property : SetOwner(HighestBidder)\n[Property.SetOwner()] Новый владелец
     else ставок не было
-        note over Property, Auction : Клетка остаётся свободной.
+        note over Auction : [Auction.Conclude()] Аукцион завершён без победителя
     end
     Auction --> Game : winner или null
     deactivate Auction
-    Game -> Game : Log(message)
-    note over Game : Игра сообщает результат торгов, затем устанавливает Auction = null.
+    note over Game : [Game.StartAuction()] Победитель и ставка либо «Ставок не было».\nПри выходе из StartAuction(), включая ошибку, игра устанавливает Auction = null.
     Game --> Game : winner или null
     deactivate Game
 end
 
 Game --> Property
 deactivate Game
-[<-- Property
-deactivate Property
 
 @enduml

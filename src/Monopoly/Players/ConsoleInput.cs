@@ -1,16 +1,23 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 
 namespace Monopoly;
 
 [ExcludeFromCodeCoverage]
 public class ConsoleInput : IInput
 {
+    public bool EndOfInput { get; private set; }
+
+    public ConsoleInput()
+    {
+        GameTrace.Write(nameof(ConsoleInput), "Создан объект для ввода с клавиатуры (ConsoleInput).");
+    }
+
     public bool AskYesNo(string question)
     {
         while (true)
         {
-            Console.Write(question + " (д/н): ");
-            string? line = Console.ReadLine();
+            string? line = ReadAnswer(question + " (д/н): ");
             if (line == null)
             {
                 return false; // ввод закончился
@@ -28,7 +35,7 @@ public class ConsoleInput : IInput
                 return false;
             }
 
-            Console.WriteLine("Введите д или н");
+            GameTrace.Write(nameof(ConsoleInput), "Введите д или н.");
         }
     }
 
@@ -36,8 +43,7 @@ public class ConsoleInput : IInput
     {
         while (true)
         {
-            Console.Write(question);
-            string? answer = Console.ReadLine();
+            string? answer = ReadAnswer(question);
             if (answer == null)
             {
                 return 0; // ввод закончился
@@ -48,13 +54,25 @@ public class ConsoleInput : IInput
                 return number;
             }
 
-            Console.WriteLine("Нужно ввести число");
+            GameTrace.Write(nameof(ConsoleInput), "Нужно ввести число.");
         }
     }
 
     public string AskText(string question)
     {
-        Console.Write(question);
-        return (Console.ReadLine() ?? "").Trim();
+        return (ReadAnswer(question) ?? "").Trim();
+    }
+
+    private string? ReadAnswer(string question, [CallerMemberName] string methodName = "")
+    {
+        GameTrace.Prompt(nameof(ConsoleInput), question, methodName);
+        string? answer = Console.ReadLine();
+        EndOfInput = answer == null;
+        if (EndOfInput || Console.IsInputRedirected || Console.IsOutputRedirected)
+        {
+            GameTrace.Separate();
+        }
+
+        return answer;
     }
 }

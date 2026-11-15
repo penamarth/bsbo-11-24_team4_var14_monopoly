@@ -9,6 +9,6 @@ public class Go : Square
 
     public override void OnLand(Player player, Game game)
     {
-        game.Log("Вы на клетке Старт.");
+        game.Log(nameof(Go), $"{GameTrace.Describe(player)} останавливается на клетке {GameTrace.Describe(this)}.");
     }
 }

@@ -9,6 +9,6 @@ public class Jail : Square
 
     public override void OnLand(Player player, Game game)
     {
-        game.Log("Вы просто посещаете тюрьму.");
+        game.Log(nameof(Jail), $"{GameTrace.Describe(player)} посещает клетку {GameTrace.Describe(this)}.");
     }
 }

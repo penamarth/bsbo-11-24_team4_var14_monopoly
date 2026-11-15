@@ -26,7 +26,7 @@ src/Monopoly/                 — сама игра (консольное при
   Players/                    — Player, Dice, Auction, ввод (IInput, ConsoleInput)
   Squares/                    — клетки: Square, Property, Street, Railroad, Utility, Tax, ...
   Cards/                      — Card, Deck, EffectType
-  Core/                       — Board, Game, GameStatus
+  Core/                       — Board, Game, GameStatus, GameTrace
   Program.cs                  — консольное меню
 tests/Monopoly.Tests/         — unit-тесты (xUnit)
   Fakes/                      — FakeInput, FixedDice, TestGame (заготовки для тестов)
@@ -61,11 +61,15 @@ dotnet run --project src/Monopoly
 | `4` | Показать всех игроков. |
 | `0` | Прервать игру. |
 
+Журнал группирует инициализацию и действия хода. Префикс `[Класс.Метод()]` показывает источник строки, а рядом с игровым объектом указан его класс.
+
 ## Тесты
 
 ```bash
 dotnet test
 ```
+
+На macOS `./run_tests.command` собирает проект, запускает тесты с покрытием и сохраняет журнал в `test_output.txt`.
 
 ### Покрытие кода
 

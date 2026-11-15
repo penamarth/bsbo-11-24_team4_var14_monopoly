@@ -14,50 +14,68 @@ public class Board
         }
 
         _squares = squares;
+        GameTrace.Write(nameof(Board), $"Создано поле (Board) из {_squares.Length} клеток.");
     }
 
     public Square GetSquare(int position)
     {
-        return _squares[position];
+        Square square = _squares[position];
+        GameTrace.Write(nameof(Board), $"Клетка на позиции {position} — {GameTrace.Describe(square)}.");
+        return square;
     }
 
     public List<Property> GetPropertiesOf(Player player)
     {
-        return _squares.OfType<Property>().Where(p => p.Owner == player).ToList();
+        List<Property> properties = _squares.OfType<Property>().Where(p => p.Owner == player).ToList();
+        GameTrace.Write(nameof(Board), $"Клеток собственности (Property) у игрока {GameTrace.Describe(player)} — {properties.Count}.");
+        return properties;
     }
 
     public List<Street> GetStreetsInGroup(string colorGroup)
     {
-        return _squares.OfType<Street>().Where(s => s.ColorGroup == colorGroup).ToList();
+        List<Street> streets = _squares.OfType<Street>().Where(s => s.ColorGroup == colorGroup).ToList();
+        GameTrace.Write(nameof(Board), $"Улиц (Street) в группе «{colorGroup}» — {streets.Count}.");
+        return streets;
     }
 
     public bool OwnsWholeGroup(Player player, string colorGroup)
     {
         List<Street> streets = GetStreetsInGroup(colorGroup);
-        return streets.Count > 0 && streets.All(s => s.Owner == player);
+        bool ownsGroup = streets.Count > 0 && streets.All(s => s.Owner == player);
+        string result = ownsGroup ? "владеет" : "не владеет";
+        GameTrace.Write(nameof(Board), $"{GameTrace.Describe(player)} {result} всей группой «{colorGroup}».");
+        return ownsGroup;
     }
 
     // Строить можно только равномерно: на улице не должно быть больше домов,
     // чем на других улицах этой же группы
     public bool IsBuildingEven(Street street)
     {
-        return GetStreetsInGroup(street.ColorGroup)
+        bool isEven = GetStreetsInGroup(street.ColorGroup)
             .All(s => s.GetBuildingLevel() >= street.GetBuildingLevel());
+        string result = isEven ? "сохранит" : "нарушит";
+        GameTrace.Write(nameof(Board), $"Строительство на {GameTrace.Describe(street)} {result} равномерность застройки.");
+        return isEven;
     }
 
     public int CountRailroadsOf(Player player)
     {
-        return _squares.OfType<Railroad>().Count(r => r.Owner == player);
+        int count = _squares.OfType<Railroad>().Count(r => r.Owner == player);
+        GameTrace.Write(nameof(Board), $"Железных дорог (Railroad) у игрока {GameTrace.Describe(player)} — {count}.");
+        return count;
     }
 
     public int CountUtilitiesOf(Player player)
     {
-        return _squares.OfType<Utility>().Count(u => u.Owner == player);
+        int count = _squares.OfType<Utility>().Count(u => u.Owner == player);
+        GameTrace.Write(nameof(Board), $"Предприятий (Utility) у игрока {GameTrace.Describe(player)} — {count}.");
+        return count;
     }
 
     // При банкротстве перед игроком всё имущество переходит кредитору
     public void TransferProperties(Player from, Player to)
     {
+        GameTrace.Write(nameof(Board), $"Передаёт собственность (Property) от {GameTrace.Describe(from)} игроку {GameTrace.Describe(to)}.");
         foreach (Property property in GetPropertiesOf(from))
         {
             property.SetOwner(to);
@@ -67,6 +85,7 @@ public class Board
     // При банкротстве из-за налога/штрафа клетки становятся свободными
     public void ReleaseProperties(Player player)
     {
+        GameTrace.Write(nameof(Board), $"Освобождает собственность (Property) игрока {GameTrace.Describe(player)}.");
         foreach (Property property in GetPropertiesOf(player))
         {
             if (property is Street street)
@@ -79,6 +98,8 @@ public class Board
 
     public static Board CreateStandard(Deck chanceDeck, Deck communityChestDeck)
     {
+        GameTrace.Write(nameof(Board),
+            $"Подготавливает стандартное поле (Board) и привязывает колоды {GameTrace.Describe(chanceDeck)} и {GameTrace.Describe(communityChestDeck)}.");
         var squares = new Square[]
         {
             new Go("Старт", 0),
@@ -91,7 +112,7 @@ public class Board
             new Chance("Шанс", 7, chanceDeck),
             new Street("ул. Огарёва", 8, 100, "Белый", 50, new[] { 6, 30, 90, 270, 400, 550 }),
             new Street("ул. Первая Парковая", 9, 120, "Белый", 50, new[] { 8, 40, 100, 300, 450, 600 }),
-            new Jail("Тюрьма", 10),
+            new Jail("Тюрьма", Player.JailPosition),
             new Street("ул. Полянка", 11, 140, "Фиолетовый", 100, new[] { 10, 50, 150, 450, 625, 750 }),
             new Utility("Электростанция", 12, 150),
             new Street("ул. Сретенка", 13, 140, "Фиолетовый", 100, new[] { 10, 50, 150, 450, 625, 750 }),

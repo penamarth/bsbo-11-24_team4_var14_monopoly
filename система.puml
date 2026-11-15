@@ -20,14 +20,15 @@ class Game {
   - readonly IInput _input
   - readonly Random? _random
   + List<Player> Players { get; } = new List<Player>()
-  + Board Board { get; }
+  + Board Board { get; private set; }
   + Dice Dice { get; }
-  + Deck ChanceDeck { get; }
-  + Deck CommunityChestDeck { get; }
+  + Deck ChanceDeck { get; private set; }
+  + Deck CommunityChestDeck { get; private set; }
   + Auction? Auction {get; private set}
   + GameStatus Status {get; private set} = GameStatus.NotStarted
   + int CurrentPlayerIndex {get; private set}
   + Game(IInput input, Dice dice, Random? random = null)
+  - static (Board, Deck, Deck) CreateBoard(Random? random)
   + void StartGame(List<string> playerNames)
   + Player GetCurrentPlayer()
   + List<Player> GetActivePlayers()
@@ -43,6 +44,20 @@ class Game {
   + bool CheckGameOver()
   + Player? GetWinner()
   + void Log(string message)
+  ~ void Log(string className, string message, string methodName = "")
+}
+
+class GameTrace <<internal static>> {
+  + static void StartBlock(string title, bool first = false)
+  + static void StartSection(string title)
+  + static void Separate()
+  + static void Write(string className, string message, string methodName = "")
+  + static void Prompt(string className, string message, string methodName = "")
+  - static string Format(string className, string methodName, string message)
+  + static string Describe(Player player)
+  + static string Describe(Square square)
+  + static string Describe(Deck deck)
+  + static string Describe(Card card)
 }
 
 enum GameStatus {
@@ -68,7 +83,7 @@ class Board {
 }
 
 class Player {
-  + const int BoardSize = 40
+  + const int BoardSize = Board.Size
   + const int GoReward = 200
   + const int JailPosition = 10
   + const int JailTurnsToLeave = 3
@@ -98,9 +113,12 @@ class Dice {
   + Dice(Random random)
   + virtual int Roll()
   + int GetSum()
+  ~ void Reset()
 }
 
 class Auction {
+  - bool _settled
+  - bool HasEnded
   + Property Property { get; }
   + List<Player> Participants { get; }
   + int CurrentBid {get; private set}
@@ -119,9 +137,12 @@ interface IInput {
 }
 
 class ConsoleInput {
+  + bool EndOfInput { get; private set; }
+  + ConsoleInput()
   + bool AskYesNo(string question)
   + int AskNumber(string question)
   + string AskText(string question)
+  - string? ReadAnswer(string question, string methodName = "")
 }
 
 class Card {
@@ -154,6 +175,7 @@ enum EffectType {
 
 abstract class Square {
   + string Name { get; }
+  + virtual string DisplayName
   + int Position { get; }
   # Square(string name, int position)
   + abstract void OnLand(Player player, Game game)
@@ -174,6 +196,7 @@ abstract class Property {
 class Street {
   + const int MaxHouses = 4
   + string ColorGroup { get; }
+  + override string DisplayName
   + int HouseCost { get; }
   + int[] RentLevels { get; }
   + int HouseCount {get; private set}
@@ -266,6 +289,9 @@ Auction -[norank]-> "0..*" Player : Participants
 Auction -[norank]-> "0..1" Player : HighestBidder
 Program .up.> Game
 Program .[norank].> ConsoleInput
+Program ..> GameTrace
+ConsoleInput .[norank].> GameTrace
+Game .[norank].> GameTrace
 Game -[hidden]down-> Player
 Game -[hidden]down-> Auction
 Game -[hidden]down-> Deck

@@ -25,10 +25,15 @@ public abstract class Property : Square
     public void SetOwner(Player? player)
     {
         Owner = player;
+        string message = player == null
+            ? $"{GameTrace.Describe(this)} теперь свободна."
+            : $"Новый владелец {GameTrace.Describe(this)} — {GameTrace.Describe(player)}.";
+        GameTrace.Write(nameof(Property), message);
     }
 
     public override void OnLand(Player player, Game game)
     {
+        game.Log(nameof(Property), $"{GameTrace.Describe(player)} попадает на {GameTrace.Describe(this)}.");
         if (Owner == null)
         {
             game.OfferPurchase(player, this);
@@ -37,12 +42,12 @@ public abstract class Property : Square
 
         if (Owner == player)
         {
-            game.Log("Это ваша собственность, ничего не происходит.");
+            game.Log(nameof(Property), "Это ваша собственность.");
             return;
         }
 
         int rent = CalculateRent(game);
-        game.Log($"{player.Name} платит аренду {rent} игроку {Owner.Name}");
+        game.Log(nameof(Property), $"Аренда для {GameTrace.Describe(player)} в пользу {GameTrace.Describe(Owner)} — {rent}.");
         game.ChargePayment(player, Owner, rent);
     }
 

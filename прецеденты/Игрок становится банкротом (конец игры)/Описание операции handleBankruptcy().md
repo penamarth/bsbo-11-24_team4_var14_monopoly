@@ -26,7 +26,7 @@
 
 ### `Player.DeclareBankrupt()`
 
-Устанавливает `Bankrupt = true`, обнуляет `Cash` и снимает признак `InJail`. Игрок остаётся в `Game.Players`, но исключается из списка активных и пропускается при смене очереди.
+Устанавливает `Bankrupt = true`, обнуляет `Cash` и `JailTurns`, снимает признак `InJail`. Игрок остаётся в `Game.Players`, но исключается из списка активных и пропускается при смене очереди.
 
 ### `Game.CheckGameOver()` и `Game.GetWinner()`
 

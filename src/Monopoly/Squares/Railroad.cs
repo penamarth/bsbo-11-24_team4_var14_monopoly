@@ -24,6 +24,7 @@ public class Railroad : Property
             rent *= 2;
         }
 
+        game.Log(nameof(Railroad), $"Аренда на {GameTrace.Describe(this)} — {rent} за {count} ж/д станций владельца.");
         return rent;
     }
 }

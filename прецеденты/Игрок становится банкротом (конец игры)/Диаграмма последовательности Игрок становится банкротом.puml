@@ -1,9 +1,12 @@
 @startuml
-title Обязательный платёж и банкротство
+title UC4. Обязательный платёж и банкротство
 hide footbox
 skinparam noteBackgroundColor #FFF4B8
+legend
+  В квадратных скобках — префиксы строк журнала.
+  Вход из UC2 — вызов ChargePayment().
+endlegend
 
-participant Program
 participant Game
 participant "debtor : Player" as Debtor
 participant "creditor : Player" as Creditor
@@ -14,32 +17,36 @@ participant "street : Street" as Street
 [-> Game : ChargePayment(payer, receiver, amount)
 activate Game
 note over Game, Debtor
+  Обязательный платёж
+  [Game.ChargePayment()] Сумма, плательщик и получатель при наличии.
   Вызывается при оплате аренды, налога или штрафа по карточке.
   При аренде получатель — владелец клетки. При налоге или штрафе
   получатель отсутствует.
 end note
 
-Game -> Debtor : CanAfford(amount)
+Game -> Debtor : CanAfford(amount)\n[Player.CanAfford()] Проверка средств
 Debtor --> Game : bool
 
 alt денег хватает сразу
-    Game -> Debtor : Pay(amount)
+    Game -> Debtor : Pay(amount)\n[Player.Pay()] Списание
     opt receiver != null
-        Game -> Creditor : Receive(amount)
+        Game -> Creditor : Receive(amount)\n[Player.Receive()] Зачисление
     end
 else денег не хватает
     Game -> Game : HandleBankruptcy(payer, receiver, amount)
     activate Game
-    Game -> Game : SellAllBuildings(debtor)
+    note over Game : Проверка банкротства\n[Game.HandleBankruptcy()] Проверяет, можно ли погасить долг продажей построек
+    Game -> Game : SellAllBuildings(debtor)\n[Game.SellAllBuildings()] Проверяет постройки
     activate Game
-    Game -> Board : GetPropertiesOf(debtor)
+    Game -> Board : GetPropertiesOf(debtor)\n[Board.GetPropertiesOf()] Число владений
     Board --> Game : properties
     loop по улицам должника
-        Game -> Street : GetBuildingLevel()
+        Game -> Street : GetBuildingLevel()\n[Street.GetBuildingLevel()] Уровень застройки
         Street --> Game : level
         opt level > 0
-            Game -> Debtor : Receive(level * street.HouseCost / 2)
-            Game -> Street : ClearBuildings()
+            note over Game : [Game.SellAllBuildings()] Улица и сумма продажи
+            Game -> Debtor : Receive(level * street.HouseCost / 2)\n[Player.Receive()] Выручка
+            Game -> Street : ClearBuildings()\n[Street.ClearBuildings()] Застройка обнулена
             note over Debtor, Street
               Каждая постройка продаётся за полцены.
               Отель считается за пять домов.
@@ -48,48 +55,46 @@ else денег не хватает
     end
     deactivate Game
 
-    Game -> Debtor : CanAfford(amount)
+    Game -> Debtor : CanAfford(amount)\n[Player.CanAfford()] Повторная проверка средств
     Debtor --> Game : bool
     alt после продажи построек денег хватает
-        Game -> Game : Log(message)
-        Game -> Debtor : Pay(amount)
+        note over Game : [Game.HandleBankruptcy()] После продажи игрок может погасить долг
+        Game -> Debtor : Pay(amount)\n[Player.Pay()] Списание долга
         opt creditor != null
-            Game -> Creditor : Receive(amount)
+            Game -> Creditor : Receive(amount)\n[Player.Receive()] Зачисление
         end
     else денег всё ещё не хватает
-        Game -> Game : Log(message)
+        note over Game : Распределение имущества\n[Game.HandleBankruptcy()] Игрок не может погасить долг
         alt creditor != null
-            Game -> Creditor : Receive(debtor.Cash)
-            Game -> Board : TransferProperties(debtor, creditor)
+            Game -> Creditor : Receive(debtor.Cash)\n[Player.Receive()] Остаток денег должника
+            Game -> Board : TransferProperties(debtor, creditor)\n[Board.TransferProperties()] Передача имущества
             activate Board
-            Board -> Board : GetPropertiesOf(debtor)
+            Board -> Board : GetPropertiesOf(debtor)\n[Board.GetPropertiesOf()] Число владений
             loop по всей собственности должника
-                Board -> Property : SetOwner(creditor)
+                Board -> Property : SetOwner(creditor)\n[Property.SetOwner()] Новый владелец
             end
             deactivate Board
         else creditor == null
-            Game -> Board : ReleaseProperties(debtor)
+            Game -> Board : ReleaseProperties(debtor)\n[Board.ReleaseProperties()] Освобождение имущества
             activate Board
-            Board -> Board : GetPropertiesOf(debtor)
+            Board -> Board : GetPropertiesOf(debtor)\n[Board.GetPropertiesOf()] Число владений
             loop по всей собственности должника
                 opt клетка является улицей
-                    Board -> Street : ClearBuildings()
+                    Board -> Street : ClearBuildings()\n[Street.ClearBuildings()] Застройка обнулена
                 end
-                Board -> Property : SetOwner(null)
+                Board -> Property : SetOwner(null)\n[Property.SetOwner()] Клетка свободна
             end
             deactivate Board
         end
-        Game -> Debtor : DeclareBankrupt()
+        Game -> Debtor : DeclareBankrupt()\n[Player.DeclareBankrupt()] Банкротство и обнуление баланса
         note over Debtor
-          Игрок помечается банкротом, его баланс
-          обнуляется, признак заключения снимается.
+          Игрок помечается банкротом. Баланс и счётчик пропусков
+          обнуляются, признак заключения снимается.
         end note
         Game -> Game : CheckGameOver()
         activate Game
-        Game -> Game : GetActivePlayers()
-        opt активных игроков осталось не больше одного
-            note over Game : Status = GameStatus.Finished.
-        end
+        Game -> Game : GetActivePlayers()\n[Game.GetActivePlayers()] Число игроков без банкротства
+        note over Game : [Game.CheckGameOver()] Статус Finished при 0–1 активных игроках,\nиначе партия продолжается.
         Game --> Game : bool
         deactivate Game
     end
@@ -98,17 +103,11 @@ end
 [<-- Game
 deactivate Game
 
-ref over Program, Game : Завершение Game.PlayTurn() — «Сыграть ход»
-note over Program, Game
-  После обработки клетки PlayTurn() вызывает CheckGameOver()
-  и AdvanceToNextPlayer(). При статусе Finished очередь не меняется.
+ref over Game : UC2. Сыграть ход\nВозврат в обработку клетки или эффекта карты
+note over Game
+  После возврата из OnLand() UC2 проверяет итог хода.
+  При Finished объявление победителя происходит в Program.Main()
+  после возврата из Game.PlayTurn().
 end note
-
-opt Status == GameStatus.Finished
-    Program -> Game : GetWinner()
-    Game -> Game : GetActivePlayers()
-    Game --> Program : первый активный Player или null
-    note over Program : Программа выводит сообщение об окончании игры и имя победителя.
-end
 
 @enduml

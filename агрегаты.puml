@@ -122,5 +122,9 @@ package "Deck aggregate · decks" as DeckAggregate  {
 
 Game -down-> Board
 Game -right-> "2" Deck
+Auction -[norank]-> Property : Property
+Property -[norank]-> "0..1" Player : Owner
+Chance -[norank]-> Deck : Deck
+CommunityChest -[norank]-> Deck : Deck
 
 @enduml

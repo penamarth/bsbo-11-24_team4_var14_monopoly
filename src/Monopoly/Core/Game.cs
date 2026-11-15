@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Monopoly;
 
 public class Game
@@ -10,30 +12,38 @@ public class Game
     private readonly Random? _random;
 
     public List<Player> Players { get; } = new List<Player>();
-    public Board Board { get; }
+    public Board Board { get; private set; }
     public Dice Dice { get; }
-    public Deck ChanceDeck { get; }
-    public Deck CommunityChestDeck { get; }
+    public Deck ChanceDeck { get; private set; }
+    public Deck CommunityChestDeck { get; private set; }
     public Auction? Auction { get; private set; }
     public GameStatus Status { get; private set; } = GameStatus.NotStarted;
     public int CurrentPlayerIndex { get; private set; }
 
     public Game(IInput input, Dice dice, Random? random = null)
     {
+        Log(nameof(Game), "Создаётся партия (Game) в состоянии NotStarted.");
         _input = input;
         Dice = dice;
         _random = random;
 
-        ChanceDeck = Deck.CreateChanceDeck();
-        CommunityChestDeck = Deck.CreateCommunityChestDeck();
+        (Board, ChanceDeck, CommunityChestDeck) = CreateBoard(random);
+    }
 
+    private static (Board Board, Deck ChanceDeck, Deck CommunityChestDeck) CreateBoard(Random? random)
+    {
+        Deck chanceDeck = Deck.CreateChanceDeck();
+        GameTrace.Separate();
+        Deck communityChestDeck = Deck.CreateCommunityChestDeck();
+
+        GameTrace.Separate();
         if (random != null)
         {
-            ChanceDeck.Shuffle(random);
-            CommunityChestDeck.Shuffle(random);
+            chanceDeck.Shuffle(random);
+            communityChestDeck.Shuffle(random);
         }
 
-        Board = Board.CreateStandard(ChanceDeck, CommunityChestDeck);
+        return (Board.CreateStandard(chanceDeck, communityChestDeck), chanceDeck, communityChestDeck);
     }
 
     public void StartGame(List<string> playerNames)
@@ -41,6 +51,14 @@ public class Game
         if (playerNames.Count < MinPlayers || playerNames.Count > MaxPlayers)
         {
             throw new ArgumentException($"Игроков должно быть от {MinPlayers} до {MaxPlayers}");
+        }
+
+        Log(nameof(Game), $"Начинается новая партия для {playerNames.Count} игроков.");
+        if (Status != GameStatus.NotStarted)
+        {
+            (Board, ChanceDeck, CommunityChestDeck) = CreateBoard(_random);
+            Dice.Reset();
+            Auction = null;
         }
 
         Players.Clear();
@@ -61,16 +79,22 @@ public class Game
 
         CurrentPlayerIndex = 0;
         Status = GameStatus.InProgress;
+        string order = string.Join(", ", Players.Select(GameTrace.Describe));
+        Log(nameof(Game), $"Статус InProgress. Порядок ходов — {order}.");
     }
 
     public Player GetCurrentPlayer()
     {
-        return Players[CurrentPlayerIndex];
+        Player player = Players[CurrentPlayerIndex];
+        Log(nameof(Game), $"Текущий игрок — {GameTrace.Describe(player)}.");
+        return player;
     }
 
     public List<Player> GetActivePlayers()
     {
-        return Players.Where(p => !p.Bankrupt).ToList();
+        List<Player> activePlayers = Players.Where(p => !p.Bankrupt).ToList();
+        Log(nameof(Game), $"Игроков (Player) без банкротства — {activePlayers.Count}.");
+        return activePlayers;
     }
 
     public void PlayTurn()
@@ -80,57 +104,52 @@ public class Game
             return;
         }
 
+        GameTrace.StartBlock("ХОД ИГРОКА");
         Player player = GetCurrentPlayer();
-        Log($"--- Ход игрока {player.Name} (деньги: {player.Cash}) ---");
+        Log(nameof(Game), $"Ход игрока {GameTrace.Describe(player)}. Баланс {player.Cash}.");
 
         if (player.InJail)
         {
-            bool released = player.TryLeaveJail();
-            if (released)
-            {
-                Log($"{player.Name} отсидел срок и в следующий ход выйдет из тюрьмы");
-            }
-            else
-            {
-                Log($"{player.Name} в тюрьме, пропущено ходов: {player.JailTurns}");
-            }
+            GameTrace.StartSection("Пропуск хода в тюрьме");
+            player.TryLeaveJail();
 
+            GameTrace.StartSection("Итог хода");
             AdvanceToNextPlayer();
             return;
         }
 
+        GameTrace.StartSection("Бросок и перемещение");
         int sum = Dice.Roll();
-        Log($"Выпало {Dice.Value1} и {Dice.Value2}, всего {sum}");
+        player.Move(sum);
 
-        if (player.Move(sum))
-        {
-            Log($"{player.Name} прошёл Старт и получил {Player.GoReward}");
-        }
-
+        GameTrace.StartSection("Действие клетки");
         Square square = Board.GetSquare(player.Position);
-        Log($"{player.Name} попал на клетку: {square.DisplayName}");
         square.OnLand(player, this);
 
+        GameTrace.StartSection("Итог хода");
         CheckGameOver();
         AdvanceToNextPlayer();
     }
 
     public bool AskBuyDecision(Player player, Property property)
     {
-        return _input.AskYesNo($"{player.Name}, купить «{property.DisplayName}» за {property.Price}?");
+        Log(nameof(Game), $"Запрашивает решение о покупке у игрока {GameTrace.Describe(player)}.");
+        return _input.AskYesNo($"{GameTrace.Describe(player)}, купить {GameTrace.Describe(property)} за {property.Price}?");
     }
 
     public void OfferPurchase(Player player, Property property)
     {
+        GameTrace.StartSection("Покупка собственности");
+        Log(nameof(Game), $"Проверяет возможность покупки {GameTrace.Describe(property)} игроком {GameTrace.Describe(player)}.");
         if (player.CanAfford(property.Price) && AskBuyDecision(player, property))
         {
             player.Pay(property.Price);
             property.SetOwner(player);
-            Log($"{player.Name} купил «{property.DisplayName}»");
+            Log(nameof(Game), $"{GameTrace.Describe(player)} купил {GameTrace.Describe(property)} за {property.Price}.");
             return;
         }
 
-        Log($"«{property.DisplayName}» выставляется на аукцион");
+        Log(nameof(Game), $"{GameTrace.Describe(property)} выставляется на аукцион (Auction).");
         StartAuction(property);
     }
 
@@ -138,50 +157,64 @@ public class Game
     // Аукцион идёт, пока не останется один лидер
     public Player? StartAuction(Property property)
     {
-        Auction = new Auction(property, GetActivePlayers());
+        GameTrace.StartSection("Аукцион");
+        Log(nameof(Game), $"Запускает аукцион (Auction) за {GameTrace.Describe(property)}.");
+        var auction = new Auction(property, GetActivePlayers());
+        Auction = auction;
 
-        while (!Auction.IsFinished())
+        try
         {
-            foreach (Player bidder in Auction.Participants.ToList())
+            while (!auction.IsFinished())
             {
-                if (bidder == Auction.HighestBidder)
+                foreach (Player bidder in auction.Participants.ToList())
                 {
-                    continue;
-                }
+                    if (bidder == auction.HighestBidder)
+                    {
+                        continue;
+                    }
 
-                int bid = _input.AskNumber(
-                    $"{bidder.Name}, ваша ставка за «{property.DisplayName}» (сейчас {Auction.CurrentBid}, 0 - пас): ");
+                    GameTrace.Separate();
+                    int bid = _input.AskNumber(
+                        $"{GameTrace.Describe(bidder)}, ваша ставка за {GameTrace.Describe(property)} (сейчас {auction.CurrentBid}, 0 — пас): ");
 
-                if (!Auction.PlaceBid(bidder, bid))
-                {
-                    Auction.Pass(bidder);
-                }
+                    if (!auction.PlaceBid(bidder, bid))
+                    {
+                        auction.Pass(bidder);
+                    }
 
-                if (Auction.IsFinished())
-                {
-                    break;
+                    if (auction.IsFinished())
+                    {
+                        break;
+                    }
                 }
             }
+
+            GameTrace.StartSection("Результат аукциона");
+            Player? winner = auction.Conclude();
+
+            if (winner != null)
+            {
+                Log(nameof(Game), $"Аукцион (Auction) выиграл {GameTrace.Describe(winner)} за {auction.CurrentBid}.");
+            }
+            else
+            {
+                Log(nameof(Game), $"Ставок не было. {GameTrace.Describe(property)} остаётся свободной.");
+            }
+
+            return winner;
         }
-
-        Player? winner = Auction.Conclude();
-
-        if (winner != null)
+        finally
         {
-            Log($"Аукцион выиграл {winner.Name} за {Auction.CurrentBid}");
+            Auction = null;
         }
-        else
-        {
-            Log("Ставок не было, клетка остаётся свободной");
-        }
-
-        Auction = null;
-        return winner;
     }
 
     // receiver = null, если деньги никому не идут (налог, штраф)
     public void ChargePayment(Player payer, Player? receiver, int amount)
     {
+        GameTrace.StartSection("Обязательный платёж");
+        string recipient = receiver == null ? "без получателя" : $"в пользу {GameTrace.Describe(receiver)}";
+        Log(nameof(Game), $"Обязательный платёж {amount} от {GameTrace.Describe(payer)} {recipient}.");
         if (payer.CanAfford(amount))
         {
             payer.Pay(amount);
@@ -194,18 +227,21 @@ public class Game
 
     public void HandleBankruptcy(Player debtor, Player? creditor, int amount)
     {
+        GameTrace.StartSection("Проверка банкротства");
+        Log(nameof(Game), $"Проверяет, можно ли погасить долг {amount} игрока {GameTrace.Describe(debtor)} продажей построек.");
         // сначала пробуем продать дома за полцены
         SellAllBuildings(debtor);
 
         if (debtor.CanAfford(amount))
         {
-            Log($"{debtor.Name} продал дома и смог заплатить");
+            Log(nameof(Game), $"После продажи построек {GameTrace.Describe(debtor)} может погасить долг.");
             debtor.Pay(amount);
             creditor?.Receive(amount);
             return;
         }
 
-        Log($"{debtor.Name} не может заплатить {amount} и становится банкротом!");
+        GameTrace.StartSection("Распределение имущества");
+        Log(nameof(Game), $"{GameTrace.Describe(debtor)} не может погасить долг {amount}. Распределяются оставшиеся активы.");
 
         if (creditor != null)
         {
@@ -223,12 +259,15 @@ public class Game
 
     private void SellAllBuildings(Player player)
     {
+        Log(nameof(Game), $"Проверяет постройки игрока {GameTrace.Describe(player)} для продажи за полцены.");
         foreach (Street street in Board.GetPropertiesOf(player).OfType<Street>())
         {
             int level = street.GetBuildingLevel();
             if (level > 0)
             {
-                player.Receive(level * street.HouseCost / 2);
+                int price = level * street.HouseCost / 2;
+                Log(nameof(Game), $"Продаёт постройки на {GameTrace.Describe(street)} за {price}.");
+                player.Receive(price);
                 street.ClearBuildings();
             }
         }
@@ -243,7 +282,8 @@ public class Game
 
         player.Pay(street.HouseCost);
         street.AddHouse();
-        Log($"{player.Name} построил дом на «{street.DisplayName}»");
+        string building = street.HasHotel ? "отель" : "дом";
+        Log(nameof(Game), $"{GameTrace.Describe(player)} построил {building} на {GameTrace.Describe(street)}.");
         return true;
     }
 
@@ -251,6 +291,7 @@ public class Game
     {
         if (Status != GameStatus.InProgress)
         {
+            Log(nameof(Game), $"Статус {Status}. Очередь игроков не меняется.");
             return;
         }
 
@@ -260,6 +301,7 @@ public class Game
             if (!Players[index].Bankrupt)
             {
                 CurrentPlayerIndex = index;
+                Log(nameof(Game), $"Ход переходит к {GameTrace.Describe(Players[index])}.");
                 return;
             }
         }
@@ -267,12 +309,20 @@ public class Game
 
     public bool CheckGameOver()
     {
-        if (GetActivePlayers().Count <= 1)
+        if (Status == GameStatus.NotStarted)
+        {
+            return false;
+        }
+
+        int activeCount = GetActivePlayers().Count;
+        if (activeCount <= 1)
         {
             Status = GameStatus.Finished;
+            Log(nameof(Game), $"Осталось активных игроков — {activeCount}. Статус Finished.");
             return true;
         }
 
+        Log(nameof(Game), $"Осталось активных игроков — {activeCount}. Партия продолжается.");
         return false;
     }
 
@@ -283,11 +333,18 @@ public class Game
             return null;
         }
 
-        return GetActivePlayers().FirstOrDefault();
+        Player? winner = GetActivePlayers().FirstOrDefault();
+        Log(nameof(Game), winner == null ? "Победителя нет." : $"Победитель — {GameTrace.Describe(winner)}.");
+        return winner;
     }
 
     public void Log(string message)
     {
-        Console.WriteLine(message);
+        Log(nameof(Game), message);
+    }
+
+    internal void Log(string className, string message, [CallerMemberName] string methodName = "")
+    {
+        GameTrace.Write(className, message, methodName);
     }
 }

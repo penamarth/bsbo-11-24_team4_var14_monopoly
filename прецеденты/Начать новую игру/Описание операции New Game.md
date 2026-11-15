@@ -12,17 +12,21 @@
 
 Создаёт `ConsoleInput` и запрашивает количество игроков через `ConsoleInput.AskNumber(question)`. Запрос повторяется, пока число не окажется в диапазоне 2–6. Затем `ConsoleInput.AskText(question)` считывает каждое имя и удаляет пробелы по краям. Для пустого имени `Program` подставляет «Игрок N». Одинаковые имена допускаются.
 
+При закрытии ввода во время настройки `ConsoleInput.EndOfInput` становится `true`, и `Program` завершает работу до создания партии.
+
 После ввода `Program` создаёт `Dice`, отдельный генератор `Random` для перемешивания и экземпляр `Game`, затем вызывает `Game.StartGame(names)`.
 
 ### `Game(IInput input, Dice dice, Random? random = null)`
 
-Создаёт две колоды через `Deck.CreateChanceDeck()` и `Deck.CreateCommunityChestDeck()`. Если передан `random`, вызывает `Deck.Shuffle(random)` для каждой колоды. После этого `Board.CreateStandard(chanceDeck, communityChestDeck)` собирает поле из 40 клеток и связывает клетки «Шанс» и «Общая казна» с соответствующими колодами. Исходный статус игры — `GameStatus.NotStarted`.
+Вызывает `Game.CreateBoard(random)`. Метод создаёт две колоды через `Deck.CreateChanceDeck()` и `Deck.CreateCommunityChestDeck()`. Если передан `random`, вызывает `Deck.Shuffle(random)` для каждой колоды. После этого `Board.CreateStandard(chanceDeck, communityChestDeck)` собирает поле из 40 клеток и связывает клетки «Шанс» и «Общая казна» с соответствующими колодами. Исходный статус игры — `GameStatus.NotStarted`.
 
 ### `Game.StartGame(List<string> playerNames)`
 
 Проверяет размер списка. Если имён меньше 2 или больше 6, выбрасывает `ArgumentException`. Для допустимого списка очищает `Game.Players` и создаёт по одному `Player` на имя. Позиция каждого игрока равна 0, баланс равен `Game.StartCash` (1500), а `InJail` и `Bankrupt` равны `false`.
 
 При наличии генератора `Random` перемешивает список игроков. Затем устанавливает `CurrentPlayerIndex = 0` и `Status = GameStatus.InProgress`. При вызове без генератора, например в тестах, сохраняется порядок входного списка.
+
+При повторном запуске на том же объекте `Game` после проверки числа имён создаются новое поле и колоды. Игра сбрасывает значения кубиков и ссылку на текущий аукцион.
 
 ### `Game.GetCurrentPlayer()`
 

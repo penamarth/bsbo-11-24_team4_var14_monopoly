@@ -77,7 +77,31 @@ public class AuctionTests
     }
 
     [Fact]
-    public void Conclude_WinnerPaysAndBecomesOwner()
+    public void Pass_LeaderStaysInAuction()
+    {
+        var auction = CreateAuction();
+        auction.PlaceBid(_ivan, 50);
+
+        auction.Pass(_ivan);
+
+        Assert.Contains(_ivan, auction.Participants);
+        Assert.False(auction.IsFinished());
+    }
+
+    [Fact]
+    public void Conclude_WhileBiddingContinues_LeavesPropertyAndCashUntouched()
+    {
+        var auction = CreateAuction();
+        auction.PlaceBid(_ivan, 250);
+
+        Assert.Throws<InvalidOperationException>(() => auction.Conclude());
+
+        Assert.Equal(1500, _ivan.Cash);
+        Assert.True(_arbat.IsFree());
+    }
+
+    [Fact]
+    public void Conclude_WinnerPaysOnlyOnceAndBecomesOwner()
     {
         var auction = CreateAuction();
         auction.PlaceBid(_ivan, 250);
@@ -85,6 +109,8 @@ public class AuctionTests
 
         Player? winner = auction.Conclude();
 
+        Assert.Same(winner, auction.Conclude());
+        Assert.False(auction.PlaceBid(_ivan, 300));
         Assert.Same(_ivan, winner);
         Assert.Equal(1250, _ivan.Cash);
         Assert.Same(_ivan, _arbat.Owner);

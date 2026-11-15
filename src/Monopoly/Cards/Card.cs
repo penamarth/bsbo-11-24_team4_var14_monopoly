@@ -13,10 +13,13 @@ public class Card
         EffectType = effectType;
         Amount = amount;
         TargetPosition = targetPosition;
+        GameTrace.Write(nameof(Card), $"Создана карта {GameTrace.Describe(this)}.");
     }
 
     public void ApplyEffect(Player player, Game game)
     {
+        GameTrace.StartSection("Эффект карты");
+        game.Log(nameof(Card), $"Карта {GameTrace.Describe(this)} применяет эффект {EffectType} к игроку {GameTrace.Describe(player)}.");
         switch (EffectType)
         {
             case EffectType.Fine:
@@ -28,13 +31,10 @@ public class Card
                 break;
 
             case EffectType.MoveTo:
-                if (player.MoveTo(TargetPosition))
-                {
-                    game.Log($"{player.Name} прошёл Старт и получил {Player.GoReward}");
-                }
+                player.MoveTo(TargetPosition);
                 // после перемещения обрабатываем новую клетку
+                GameTrace.StartSection("Клетка назначения");
                 Square square = game.Board.GetSquare(TargetPosition);
-                game.Log($"{player.Name} перемещается на клетку {square.DisplayName}");
                 square.OnLand(player, game);
                 break;
 

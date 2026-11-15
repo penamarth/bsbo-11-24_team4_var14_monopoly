@@ -121,13 +121,17 @@ public class PlayerTests
     }
 
     [Fact]
-    public void DeclareBankrupt_SetsFlagAndZeroCash()
+    public void DeclareBankrupt_SetsFlagAndClearsCashAndJailState()
     {
         var player = new Player("Андрей", 1500);
+        player.SendToJail();
+        player.TryLeaveJail();
 
         player.DeclareBankrupt();
 
         Assert.True(player.Bankrupt);
         Assert.Equal(0, player.Cash);
+        Assert.False(player.InJail);
+        Assert.Equal(0, player.JailTurns);
     }
 }

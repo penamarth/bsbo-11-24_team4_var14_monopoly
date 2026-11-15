@@ -26,6 +26,50 @@ public class GameTests
             game.StartGame(new List<string> { "1", "2", "3", "4", "5", "6", "7" }));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void StartGame_ExistingGame_ResetsBoardAndDecks(bool finished)
+    {
+        var game = TestGame.Create(dice: new FixedDice((2, 2)));
+        game.Dice.Roll();
+        var oldStreet = TestGame.Square<Street>(game, 1);
+        oldStreet.SetOwner(game.Players[1]);
+        oldStreet.AddHouse();
+        game.ChanceDeck.DrawCard();
+        game.CommunityChestDeck.DrawCard();
+
+        if (finished)
+        {
+            game.ChargePayment(game.Players[0], null, 2000);
+            Assert.Equal(GameStatus.Finished, game.Status);
+        }
+
+        game.StartGame(new List<string> { "Елена", "Мария" });
+
+        var street = TestGame.Square<Street>(game, 1);
+        Assert.NotSame(oldStreet, street);
+        Assert.True(street.IsFree());
+        Assert.Equal(0, street.GetBuildingLevel());
+        Assert.Equal(5, game.ChanceDeck.Count);
+        Assert.Equal(5, game.CommunityChestDeck.Count);
+        Assert.Same(game.ChanceDeck, TestGame.Square<Chance>(game, 7).Deck);
+        Assert.Same(game.CommunityChestDeck, TestGame.Square<CommunityChest>(game, 2).Deck);
+        Assert.Equal(0, game.Dice.Value1);
+        Assert.Equal(0, game.Dice.Value2);
+        Assert.Equal(GameStatus.InProgress, game.Status);
+        Assert.Equal("Елена", game.GetCurrentPlayer().Name);
+    }
+
+    [Fact]
+    public void CheckGameOver_BeforeStart_KeepsNotStartedStatus()
+    {
+        var game = new Game(new FakeInput(), new FixedDice());
+
+        Assert.False(game.CheckGameOver());
+        Assert.Equal(GameStatus.NotStarted, game.Status);
+    }
+
     [Fact]
     public void PlayTurn_MovesPlayerHandlesSquareAndPassesTurn()
     {
@@ -75,13 +119,27 @@ public class GameTests
     }
 
     [Fact]
-    public void PlayTurn_GameFinished_DoesNothing()
+    public void PlayTurn_BeforeStart_DoesNothing()
     {
         var game = new Game(new FakeInput(), new FixedDice((2, 2)));
 
         game.PlayTurn();
 
         Assert.Equal(GameStatus.NotStarted, game.Status);
+    }
+
+    [Fact]
+    public void PlayTurn_GameFinished_DoesNothing()
+    {
+        var game = TestGame.Create(dice: new FixedDice((2, 2)));
+        var current = game.GetCurrentPlayer();
+        game.ChargePayment(game.Players[1], null, 2000);
+
+        game.PlayTurn();
+
+        Assert.Equal(GameStatus.Finished, game.Status);
+        Assert.Equal(0, current.Position);
+        Assert.Equal(Game.StartCash, current.Cash);
     }
 
     [Fact]
@@ -123,6 +181,21 @@ public class GameTests
 
         Assert.Same(game.Players[0], winner);
         Assert.Equal(1300, game.Players[0].Cash);
+    }
+
+    [Fact]
+    public void StartAuction_InputError_ClearsAuctionAndAllowsRetry()
+    {
+        var game = new Game(new FailOnceInput(), new FixedDice());
+        game.StartGame(new List<string> { "Андрей", "Иван" });
+        var arbat = TestGame.Square<Street>(game, 39);
+
+        Assert.Throws<IOException>(() => game.StartAuction(arbat));
+
+        Assert.Null(game.Auction);
+        Assert.True(arbat.IsFree());
+        Assert.All(game.Players, player => Assert.Equal(Game.StartCash, player.Cash));
+        Assert.Null(game.StartAuction(arbat));
     }
 
     [Fact]
@@ -254,5 +327,24 @@ public class GameTests
 
         Assert.Equal(3, game.Players.Count);
         Assert.Contains("Пётр", game.Players.Select(p => p.Name));
+    }
+
+    private sealed class FailOnceInput : IInput
+    {
+        private bool _shouldFail = true;
+
+        public int AskNumber(string question)
+        {
+            if (_shouldFail)
+            {
+                _shouldFail = false;
+                throw new IOException("Сбой чтения ставки");
+            }
+
+            return 0;
+        }
+
+        public bool AskYesNo(string question) => false;
+        public string AskText(string question) => "";
     }
 }

@@ -11,8 +11,8 @@ public class Chance : Square
 
     public override void OnLand(Player player, Game game)
     {
+        game.Log(nameof(Chance), $"{GameTrace.Describe(player)} попадает на {GameTrace.Describe(this)}.");
         Card card = Deck.DrawCard();
-        game.Log($"Шанс: {card.Description}");
         Deck.ReturnToBottom(card);
         card.ApplyEffect(player, game);
     }

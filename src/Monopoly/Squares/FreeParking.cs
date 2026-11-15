@@ -8,6 +8,6 @@ public class FreeParking : Square
 
     public override void OnLand(Player player, Game game)
     {
-        game.Log("Бесплатная стоянка, можно отдохнуть.");
+        game.Log(nameof(FreeParking), $"{GameTrace.Describe(player)} отдыхает на клетке {GameTrace.Describe(this)}.");
     }
 }

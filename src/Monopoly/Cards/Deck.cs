@@ -11,6 +11,7 @@ public class Deck
     {
         Name = name;
         _cards = new List<Card>(cards);
+        GameTrace.Write(nameof(Deck), $"Создана колода {GameTrace.Describe(this)} из {Count} карт (Card).");
     }
 
     public Card DrawCard()
@@ -22,12 +23,14 @@ public class Deck
 
         Card card = _cards[0];
         _cards.RemoveAt(0);
+        GameTrace.Write(nameof(Deck), $"Из колоды {GameTrace.Describe(this)} вытянута карта {GameTrace.Describe(card)}.");
         return card;
     }
 
     public void ReturnToBottom(Card card)
     {
         _cards.Add(card);
+        GameTrace.Write(nameof(Deck), $"Карта {GameTrace.Describe(card)} возвращена под низ колоды {GameTrace.Describe(this)}.");
     }
 
     public void Shuffle(Random random)
@@ -37,10 +40,12 @@ public class Deck
             int j = random.Next(i + 1);
             (_cards[i], _cards[j]) = (_cards[j], _cards[i]);
         }
+        GameTrace.Write(nameof(Deck), $"Колода {GameTrace.Describe(this)} перемешана.");
     }
 
     public static Deck CreateChanceDeck()
     {
+        GameTrace.Write(nameof(Deck), "Формирует колоду «Шанс» (Deck).");
         var cards = new List<Card>
         {
             new Card("Штраф за превышение скорости: заплатите 15", EffectType.Fine, amount: 15),
@@ -54,6 +59,7 @@ public class Deck
 
     public static Deck CreateCommunityChestDeck()
     {
+        GameTrace.Write(nameof(Deck), "Формирует колоду «Общая казна» (Deck).");
         var cards = new List<Card>
         {
             new Card("Ошибка в расчётах в вашу пользу: получите 200", EffectType.Bonus, amount: 200),

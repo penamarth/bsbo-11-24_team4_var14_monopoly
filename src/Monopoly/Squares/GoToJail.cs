@@ -8,7 +8,7 @@ public class GoToJail : Square
 
     public override void OnLand(Player player, Game game)
     {
-        game.Log($"{player.Name} отправляется в тюрьму!");
+        game.Log(nameof(GoToJail), $"{GameTrace.Describe(player)} попадает на {GameTrace.Describe(this)}.");
         player.SendToJail();
     }
 }

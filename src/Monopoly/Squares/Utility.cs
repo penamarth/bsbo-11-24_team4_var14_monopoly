@@ -16,6 +16,9 @@ public class Utility : Property
 
         int count = game.Board.CountUtilitiesOf(Owner);
         int multiplier = count >= 2 ? 10 : 4;
-        return game.Dice.GetSum() * multiplier;
+        int sum = game.Dice.GetSum();
+        int rent = sum * multiplier;
+        game.Log(nameof(Utility), $"Аренда на {GameTrace.Describe(this)} — {sum} × {multiplier} = {rent}.");
+        return rent;
     }
 }

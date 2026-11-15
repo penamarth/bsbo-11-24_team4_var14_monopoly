@@ -1,7 +1,12 @@
 @startuml
-title Сыграть ход
+title UC2. Сыграть ход
 hide footbox
 skinparam noteBackgroundColor #FFF4B8
+legend
+  В квадратных скобках — префиксы строк журнала.
+  Первый показ меню следует за UC1. Меню повторяется, пока партия продолжается.
+  Ссылки UC3 и UC4 раскрывают уже показанный вызов.
+endlegend
 
 actor "Игрок" as User
 participant Program
@@ -15,147 +20,229 @@ participant Deck
 participant Card
 participant "destination : Square" as Destination
 
-Program -> Game : GetCurrentPlayer()
-Game --> Program : player
-Program -> Program : Describe(game, player)
-Program -> Board : GetSquare(player.Position)
-Board --> Program : square
-Program -> User : текущий игрок и меню
-Program -> ConsoleInput : AskNumber(question)
-ConsoleInput -> User : приглашение к вводу
-User --> ConsoleInput : 1
-ConsoleInput --> Program : choice
-Program -> Game : PlayTurn()
-activate Game
-note over Game
-  PlayTurn() сразу возвращает управление,
-  если Status != GameStatus.InProgress.
-end note
-Game -> Game : GetCurrentPlayer()
-Game -> Game : Log(message)
-
-alt player.InJail
-    Game -> Player : TryLeaveJail()
-    Player --> Game : released
-    note over Game, Player
-      Увеличивается счётчик пропущенных ходов.
-      На третьем пропуске снимается признак заключения.
-      Бросок возможен со следующего хода этого игрока.
-    end note
-    Game -> Game : Log(message)
-    Game -> Game : AdvanceToNextPlayer()
-else игрок вне тюрьмы
-    Game -> Dice : Roll()
-    activate Dice
-    note over Dice : Сохраняются два случайных значения от 1 до 6.
-    Dice -> Dice : GetSum()
-    Dice --> Game : sum
-    deactivate Dice
-    Game -> Game : Log(message)
-
-    Game -> Player : Move(sum)
-    note over Player
-      Позиция обновляется по кругу из 40 клеток.
-      При прохождении «Старта» игрок получает 200.
-    end note
-    Player --> Game : passedGo
-    opt игрок прошёл «Старт»
-        Game -> Game : Log(message)
+loop Status == GameStatus.InProgress
+    group МЕНЮ ХОДА
+        Program -> Game : GetCurrentPlayer()\n[Game.GetCurrentPlayer()] Текущий игрок
+        Game --> Program : player
+        Program -> Program : Describe(game, player)
+        Program -> Board : GetSquare(player.Position)\n[Board.GetSquare()] Клетка игрока
+        Board --> Program : square
+        Program -> User : [Program.Main()] Игрок, баланс, клетка\n[Program.Main()] Доступные действия\n1 — бросить кубики → Game.PlayTurn()\n2 — построить дом → Program.BuildMenu()\n3 — мои владения → Program.ShowProperties()\n4 — все игроки → Program.ShowPlayers()\n0 — выход → Program.Main() (завершение)
+        Program -> ConsoleInput : AskNumber(question)
+        ConsoleInput -> User : [ConsoleInput.AskNumber()] Приглашение к вводу
+        User --> ConsoleInput : номер пункта
+        note over ConsoleInput : При нечисловом ответе [ConsoleInput.AskNumber()]\nвыводит «Нужно ввести число.» и повторяет запрос.
+        ConsoleInput --> Program : choice
     end
 
-    Game -> Board : GetSquare(player.Position)
-    Board --> Game : square
-    Game -> Game : Log(message)
-    Game -> Square : OnLand(player, game)
-    activate Square
-    note over Square : Поведение определяется типом клетки.
+    alt choice == 1
+        Program -> Game : PlayTurn()
+        activate Game
+        group ХОД ИГРОКА
+            Game -> Game : GetCurrentPlayer()\n[Game.GetCurrentPlayer()] Текущий игрок
+            note over Game : [Game.PlayTurn()] Ход игрока и баланс
 
-    alt Property без владельца
-        Square -> Game : OfferPurchase(player, property)
-        ref over Game, Square : Купить собственность / выставить на аукцион
-    else Property другого игрока
-        Square -> Square : CalculateRent(game)
-        alt Street без построек
-            Square -> Board : OwnsWholeGroup(Owner, ColorGroup)
-            Board -> Board : GetStreetsInGroup(ColorGroup)
-            Board --> Square : bool
-            note over Board, Square : За всю цветовую группу базовая аренда удваивается.
-        else Street с постройками
-            note over Square : Аренда берётся из таблицы по числу домов или по отелю.
-        else Railroad
-            Square -> Board : CountRailroadsOf(Owner)
-            Board --> Square : count
-            note over Board, Square : Аренда — 25 за одну станцию и удваивается за каждую следующую.
-        else Utility
-            Square -> Board : CountUtilitiesOf(Owner)
-            Board --> Square : count
-            Square -> Dice : GetSum()
-            Dice --> Square : sum
-            note over Board, Square : Сумма кубиков умножается на 4 или 10 в зависимости от числа предприятий.
-        end
-        Square -> Game : Log(message)
-        Square -> Game : ChargePayment(player, Owner, rent)
-        ref over Game, Square : Обязательный платёж и банкротство
-    else Tax
-        Square -> Game : Log(message)
-        Square -> Game : ChargePayment(player, null, Amount)
-    else Chance или CommunityChest
-        Square -> Deck : DrawCard()
-        Deck --> Square : card
-        Square -> Game : Log(message)
-        Square -> Deck : ReturnToBottom(card)
-        Square -> Card : ApplyEffect(player, game)
-        activate Card
-        alt EffectType.Fine
-            Card -> Game : ChargePayment(player, null, Amount)
-        else EffectType.Bonus
-            Card -> Player : Receive(Amount)
-        else EffectType.MoveTo
-            Card -> Player : MoveTo(TargetPosition)
-            Player --> Card : passedGo
-            opt целевая позиция меньше исходной
-                note over Player, Card : MoveTo() уже начислил 200 за прохождение «Старта».
-                Card -> Game : Log(message)
+            alt player.InJail
+                group Пропуск хода в тюрьме
+                    Game -> Player : TryLeaveJail()\n[Player.TryLeaveJail()] Число пропусков или выход после третьего
+                    Player --> Game : released
+                    note over Game, Player : Бросок возможен со следующего хода этого игрока.
+                end
+            else игрок вне тюрьмы
+                group Бросок и перемещение
+                    Game -> Dice : Roll()\n[Dice.Roll()] Значения двух кубиков
+                    Dice -> Dice : GetSum()\n[Dice.GetSum()] Сумма кубиков
+                    Dice --> Game : sum
+
+                    Game -> Player : Move(sum)\n[Player.Move()] Начальная и конечная позиции
+                    opt игрок прошёл «Старт»
+                        note over Player : [Player.Move()] Начислено 200, показан баланс
+                    end
+                    Player --> Game : passedGo
+                end
+
+                group Действие клетки
+                    Game -> Board : GetSquare(player.Position)\n[Board.GetSquare()] Найденная клетка
+                    Board --> Game : square
+                    Game -> Square : OnLand(player, game)
+                    activate Square
+
+                    alt Street, Railroad или Utility
+                        note over Square : [Property.OnLand()] Игрок попал на клетку\nВ журнале указан конкретный класс объекта.
+                        alt Owner == null
+                            Square -> Game : OfferPurchase(player, property)
+                            ref over Game, Square : UC3. Купить собственность / выставить на аукцион
+                        else Owner == player
+                            note over Square : [Property.OnLand()] Это ваша собственность.
+                        else другой владелец
+                            Square -> Square : CalculateRent(game)
+                            alt Street
+                                opt уровень застройки 0
+                                    Square -> Board : OwnsWholeGroup(Owner, ColorGroup)
+                                    Board -> Board : GetStreetsInGroup(ColorGroup)\n[Board.GetStreetsInGroup()] Число улиц в группе
+                                    note over Board : [Board.OwnsWholeGroup()] Результат проверки группы
+                                    Board --> Square : bool
+                                end
+                                note over Square : [Street.CalculateRent()] Аренда и уровень застройки.\nБез построек аренда двойная при владении всей группой.
+                            else Railroad
+                                Square -> Board : CountRailroadsOf(Owner)\n[Board.CountRailroadsOf()] Число дорог
+                                Board --> Square : count
+                                note over Square : [Railroad.CalculateRent()] Аренда за дороги.\n25 за одну дорогу с удвоением за каждую следующую.
+                            else Utility
+                                Square -> Board : CountUtilitiesOf(Owner)\n[Board.CountUtilitiesOf()] Число предприятий
+                                Board --> Square : count
+                                Square -> Dice : GetSum()\n[Dice.GetSum()] Сумма кубиков
+                                Dice --> Square : sum
+                                note over Square : [Utility.CalculateRent()] Сумма кубиков × 4 или × 10
+                            end
+                            note over Square : [Property.OnLand()] Сумма аренды и получатель
+                            Square -> Game : ChargePayment(player, Owner, rent)
+                            ref over Game, Square : UC4. Обязательный платёж и банкротство
+                        end
+                    else Tax
+                        note over Square : [Tax.OnLand()] Начислен налог
+                        Square -> Game : ChargePayment(player, null, Amount)
+                        ref over Game, Square : UC4. Обязательный платёж и банкротство
+                    else Chance или CommunityChest
+                        note over Square : [Chance.OnLand()] или [CommunityChest.OnLand()] Игрок попал на клетку
+                        Square -> Deck : DrawCard()\n[Deck.DrawCard()] Из колоды вытянута карта
+                        Deck --> Square : card
+                        Square -> Deck : ReturnToBottom(card)\n[Deck.ReturnToBottom()] Карта под низом колоды
+                        Square -> Card : ApplyEffect(player, game)
+                        activate Card
+                        group Эффект карты
+                            note over Card : [Card.ApplyEffect()] Карта, эффект и игрок
+                            alt EffectType.Fine
+                                Card -> Game : ChargePayment(player, null, Amount)
+                                ref over Game, Card : UC4. Обязательный платёж и банкротство
+                            else EffectType.Bonus
+                                Card -> Player : Receive(Amount)\n[Player.Receive()] Зачисление бонуса
+                            else EffectType.MoveTo
+                                Card -> Player : MoveTo(TargetPosition)\n[Player.MoveTo()] Начальная и конечная позиции
+                                opt целевая позиция меньше исходной
+                                    note over Player : [Player.MoveTo()] Начислено 200, показан баланс
+                                end
+                                Player --> Card : passedGo
+                                group Клетка назначения
+                                    Card -> Board : GetSquare(TargetPosition)\n[Board.GetSquare()] Найденная клетка
+                                    Board --> Card : destination
+                                    Card -> Destination : OnLand(player, game)
+                                    ref over Destination : UC2. Ветка OnLand()\nGo («Старт») или Property (ул. Арбат)
+                                    Destination --> Card
+                                end
+                            else EffectType.GoToJail
+                                Card -> Player : SendToJail()\n[Player.SendToJail()] Игрок отправлен в тюрьму
+                            end
+                        end
+                        Card --> Square
+                        deactivate Card
+                    else GoToJail
+                        note over Square : [GoToJail.OnLand()] Игрок попал на клетку
+                        Square -> Player : SendToJail()\n[Player.SendToJail()] Игрок отправлен в тюрьму
+                    else Go, Jail или FreeParking
+                        note over Square : [Go.OnLand()], [Jail.OnLand()] или [FreeParking.OnLand()]\\nИгрок останавливается на клетке.
+                    end
+                    Square --> Game
+                    deactivate Square
+                end
             end
-            Card -> Board : GetSquare(TargetPosition)
-            Board --> Card : destination
-            Card -> Game : Log(message)
-            Card -> Destination : OnLand(player, game)
-            note over Card, Destination
-              В стандартных колодах целевая клетка —
-              «Старт» или ул. Арбат. Она обрабатывается сразу.
-            end note
-        else EffectType.GoToJail
-            Card -> Player : SendToJail()
-        end
-        deactivate Card
-    else GoToJail
-        Square -> Game : Log(message)
-        Square -> Player : SendToJail()
-        note over Player, Square
-          Игрок перемещается на позицию 10 и считается заключённым.
-          Счётчик пропущенных ходов обнуляется.
-        end note
-    else Своя Property, Go, Jail или FreeParking
-        Square -> Game : Log(message)
-    end
-    Square --> Game
-    deactivate Square
 
-    Game -> Game : CheckGameOver()
-    Game -> Game : GetActivePlayers()
-    note over Game
-      При числе активных игроков от 0 до 1
-      Status становится GameStatus.Finished.
-    end note
-    Game -> Game : AdvanceToNextPlayer()
+            group Итог хода
+                opt игрок был вне тюрьмы при начале хода
+                    Game -> Game : CheckGameOver()
+                    Game -> Game : GetActivePlayers()\n[Game.GetActivePlayers()] Число игроков без банкротства
+                    note over Game : [Game.CheckGameOver()] Статус Finished при 0–1 активном игроке,\nиначе партия продолжается.
+                end
+                Game -> Game : AdvanceToNextPlayer()\n[Game.AdvanceToNextPlayer()] Следующий игрок или статус Finished
+                note over Game : При InProgress выбирается следующий игрок по кругу с пропуском банкротов.\nПри Finished индекс остаётся прежним.
+            end
+        end
+        Game --> Program
+        deactivate Game
+
+    else choice == 2
+        group СТРОИТЕЛЬСТВО
+            Program -> Program : BuildMenu(game, player, input)\n[Program.BuildMenu()] Подбирает доступные улицы
+            Program -> Board : GetPropertiesOf(player)\n[Board.GetPropertiesOf()] Число владений
+            loop по улицам игрока
+                Program -> Square : CanBuild(player, board)\n[Street.CanBuild()] Проверяет возможность строительства
+                opt улица принадлежит игроку и без отеля
+                    Square -> Board : OwnsWholeGroup(player, ColorGroup)
+                    Board -> Board : GetStreetsInGroup(ColorGroup)\n[Board.GetStreetsInGroup()] Число улиц
+                    note over Board : [Board.OwnsWholeGroup()] Результат проверки группы
+                    opt вся группа принадлежит игроку
+                        Square -> Board : IsBuildingEven(street)
+                        Board -> Board : GetStreetsInGroup(ColorGroup)\n[Board.GetStreetsInGroup()] Число улиц
+                        loop сравнение уровней до первого нарушения
+                            Board -> Square : GetBuildingLevel() для сравниваемой улицы\n[Street.GetBuildingLevel()] Уровень застройки
+                            Board -> Square : GetBuildingLevel() для выбранной улицы\n[Street.GetBuildingLevel()] Уровень застройки
+                        end
+                        note over Board : [Board.IsBuildingEven()] Результат проверки равномерности
+                        opt строительство равномерно
+                            Square -> Player : CanAfford(HouseCost)\n[Player.CanAfford()] Достаточность средств
+                        end
+                    end
+                end
+            end
+            alt доступных улиц нет
+                note over Program : [Program.BuildMenu()] Строить пока негде
+            else есть доступные улицы
+                group Доступные улицы
+                    note over Program : [Program.BuildMenu()] По строке на улицу с числом домов и ценой
+                end
+                Program -> ConsoleInput : AskNumber(question)
+                ConsoleInput -> User : [ConsoleInput.AskNumber()] Номер клетки
+                User --> ConsoleInput : position
+                note over ConsoleInput : При нечисловом ответе [ConsoleInput.AskNumber()]\nвыводит «Нужно ввести число.» и повторяет запрос.
+                ConsoleInput --> Program : position
+                opt номер есть среди доступных улиц
+                    Program -> Game : BuildHouse(player, street)
+                    Game -> Square : CanBuild(player, board)
+                    ref over Square, Board : Та же проверка Street.CanBuild() и её строки журнала
+                    opt строительство допустимо
+                        Game -> Player : Pay(HouseCost)\n[Player.Pay()] Списание цены
+                        Game -> Square : AddHouse()\n[Street.AddHouse()] Новый дом или отель
+                        note over Game : [Game.BuildHouse()] Игрок построил дом или отель
+                    end
+                end
+                opt номер недоступен или BuildHouse() вернул false
+                    note over Program : [Program.BuildMenu()] Построить не получилось.
+                end
+            end
+        end
+
+    else choice == 3
+        group МОИ ВЛАДЕНИЯ
+            Program -> Program : ShowProperties(game, player)\n[Program.ShowProperties()] Владения игрока
+            Program -> Board : GetPropertiesOf(player)\n[Board.GetPropertiesOf()] Число владений
+            note over Program : [Program.ShowProperties()] Список владений или сообщение об отсутствии
+        end
+    else choice == 4
+        group ВСЕ ИГРОКИ
+            Program -> Program : ShowPlayers(game)
+            loop по всем игрокам
+                Program -> Program : Describe(game, player)
+                Program -> Board : GetSquare(player.Position)\n[Board.GetSquare()] Клетка игрока
+                note over Program : [Program.ShowPlayers()] Баланс, клетка и состояние игрока
+            end
+        end
+    else choice == 0
+        break ЗАВЕРШЕНИЕ ИГРЫ по команде игрока
+            note over Program : [Program.Main()] Игра прервана.
+        end
+    else неизвестный пункт
+        note over Program : [Program.Main()] Нет такого пункта.
+    end
 end
-note over Game
-  AdvanceToNextPlayer() при статусе InProgress
-  выбирает следующего игрока по кругу, пропуская банкротов.
-  При завершённой игре индекс не меняется.
-end note
-Game --> Program
-deactivate Game
+
+opt Status == GameStatus.Finished
+    group ЗАВЕРШЕНИЕ ИГРЫ
+        Program -> Game : GetWinner()
+        Game -> Game : GetActivePlayers()\n[Game.GetActivePlayers()] Число игроков без банкротства
+        note over Game : [Game.GetWinner()] Победитель либо «Победителя нет.»
+        Game --> Program : winner или null
+        Program -> User : [Program.Main()] Игра окончена. Победитель при наличии
+    end
+end
 
 @enduml

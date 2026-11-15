@@ -49,32 +49,29 @@ public class Street : Property
     // Уровень застройки: 0-4 дома, 5 = отель
     public int GetBuildingLevel()
     {
-        return HasHotel ? MaxHouses + 1 : HouseCount;
+        int level = HasHotel ? MaxHouses + 1 : HouseCount;
+        GameTrace.Write(nameof(Street), $"Уровень застройки {GameTrace.Describe(this)} — {level}.");
+        return level;
     }
 
     public override int CalculateRent(Game game)
     {
-        if (HasHotel)
-        {
-            return RentLevels[5];
-        }
-
-        if (HouseCount > 0)
-        {
-            return RentLevels[HouseCount];
-        }
+        int level = HasHotel ? MaxHouses + 1 : HouseCount;
+        int rent = RentLevels[level];
 
         // если у владельца вся цветовая группа - аренда без домов двойная
-        if (Owner != null && game.Board.OwnsWholeGroup(Owner, ColorGroup))
+        if (level == 0 && Owner != null && game.Board.OwnsWholeGroup(Owner, ColorGroup))
         {
-            return RentLevels[0] * 2;
+            rent *= 2;
         }
 
-        return RentLevels[0];
+        game.Log(nameof(Street), $"Аренда на {GameTrace.Describe(this)} — {rent}. Уровень застройки {level}.");
+        return rent;
     }
 
     public bool CanBuild(Player player, Board board)
     {
+        GameTrace.Write(nameof(Street), $"Проверяет возможность строительства игроком {GameTrace.Describe(player)} на {GameTrace.Describe(this)}.");
         if (Owner != player || HasHotel)
         {
             return false;
@@ -110,6 +107,9 @@ public class Street : Property
             HouseCount = 0;
             HasHotel = true;
         }
+
+        string result = HasHotel ? "построен отель" : $"домов теперь {HouseCount}";
+        GameTrace.Write(nameof(Street), $"На {GameTrace.Describe(this)} {result}.");
     }
 
     public void RemoveHouse()
@@ -129,5 +129,6 @@ public class Street : Property
     {
         HouseCount = 0;
         HasHotel = false;
+        GameTrace.Write(nameof(Street), $"Застройка на {GameTrace.Describe(this)} обнулена.");
     }
 }
